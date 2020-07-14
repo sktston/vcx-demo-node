@@ -107,4 +107,23 @@ a message on behalf of the owner, it will send notification to webhook url speci
 In the case of this demo, it's by default `localhost:7209/notifications/faber` and
 `localhost:7209/notifications/alice`.
 
+# Additional Demo
+
+Examples of multi-holder implementation by extending the previous `faber-alice example` are in the `demo-multi` and `demo-webhook` directories. In the previous faber-alice example, Faber is implemented to act as the Issuer and Verifier at the same time. In the multi-holder examples, this is divided into Issuer and Verifier respectively. (faber-issuer, faber-verifier)
+
+Both the `demo-multi` and` demo-webhook` examples implement multi-holders, but the difference between the agent message check method is that demo-multi uses the polling method and demo-webhook uses the webhook triggered method.
+
+Before running `demo-multi` and `demo-webhook`, [`dummy cloud agent`](https://github.com/hyperledger/indy-sdk/tree/master/vcx/dummy-cloud-agent) or [`vcxnodeagency`](https://github.com/AbsaOSS/vcxagencynode) must be executed first. It is recommended to use 3 terminals for example execution
+```
+Terminal-1: ~/demo-webhook/node faber-issuer.js -> copy invitation code
+Terminal-2: ~/demo-webhook/node faber-verifier.js -> copy invitation code
+Terminal-3: ~/demo-webhook/node alice-multi.js -i 'issuer invitation code' -v 'verifier invitation code' -n <number of alice>
+```
+
+- alice-multi.js must provide the corresponding invitation code as a parameter to connect to the faber-issuer and faber-verifier. 
+  - `-i` and `-v` options
+  - Be careful to wrap it with **' '** when giving invitation code arguments to the shell. for example, **node alice-multi.js -v '{"@id":"70d5ed' -v '{"@id":"3a685538-78' -n 16**
+- In the `demo-multi` example, the invitation code must be given through the -i and -v options, but can be omitted in the `demo-webhook` example. 
+  - In the demo-webhook example, the http server is running on the faber-issuer and faber-verifier, and alice-multi can connect to the server to receive the invitation code.
+  - For example, **node alice-multi.js -n 16**
 
