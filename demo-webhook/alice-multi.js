@@ -358,7 +358,7 @@ async function processMessage(message, aliceId, options) {
             logger.verbose(`Alice[${aliceId}] proof is verified`)
             process.send({cmd: 'aliceDone', report: report.getRecords()})
           } else {
-            logger.error(`Alice[${aliceId}] message: ${JSON.stringify(msg, null, 2)}`)
+            logger.error(`Alice[${aliceId}] msg: ${JSON.stringify(msg, null, 2)}`)
             logger.error(`Alice[${aliceId}] unknown payload message type name: ${payloadMsgType}`)
           }
           break
@@ -503,7 +503,7 @@ async function processMessage(message, aliceId, options) {
         }
 
         default: {
-          logger.error(`Alice[${aliceId}] message: ${JSON.stringify(msg, null, 2)}`)
+          logger.error(`Alice[${aliceId}] msg: ${JSON.stringify(msg, null, 2)}`)
           logger.error(`Alice[${aliceId}] unknown payload type name: ${payloadTypeName}`)
         }
       } //switch (payloadTypeName)

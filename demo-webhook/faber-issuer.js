@@ -365,6 +365,9 @@ async function processMessage(message) {
 
       await credentialForAlice.release()
       logger.verbose(`End of credential issue: ${++numIssues}`)
+    } else {
+      logger.error(`msg: ${JSON.stringify(msg, null, 2)}`)
+      logger.error(`unknown payload message type name: ${payloadMsgType}`)
     }
   } //for (const msg of message.msgs)
 

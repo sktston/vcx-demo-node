@@ -298,6 +298,10 @@ async function processMessage(message) {
             await proof.release()
           } // if (autoSendProofRequest)
         } // else if (payloadMsgType === 'did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/notification/1.0/ack')
+        else {
+          logger.error(`msg: ${JSON.stringify(msg, null, 2)}`)
+          logger.error(`unknown payload message type name: ${payloadMsgType}`)
+        }
         break
 
       case 'presentation':
@@ -338,6 +342,7 @@ async function processMessage(message) {
         break
 
       default:
+        logger.error(`msg: ${JSON.stringify(msg, null, 2)}`)
         logger.error(`unknown payload type name: ${payloadTypeName}`)
     } //switch (payloadTypeName)
   } //for (const msg of message.msgs)
