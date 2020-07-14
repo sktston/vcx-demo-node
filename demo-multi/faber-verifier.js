@@ -31,7 +31,7 @@ const provisionConfig = {
   enterprise_seed: '000000000000000000000000Trustee1'
 }
 
-const logLevel = 'error'
+const logLevel = process.env.VCX_LOG_LEVEL ? process.env.VCX_LOG_LEVEL : 'error'
 
 function waitEnter() {
   if (process.env.STEP == 'true') {

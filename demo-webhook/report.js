@@ -79,11 +79,12 @@ class Report {
         return records
     }
 
-    getReport(phaseFilter = [PhaseType.Onboard, PhaseType.Issue, PhaseType.Verify]) {
+    getReport() {
         // recordArray -> array of '{workerId, phase, startTime, endTime, duration}'
         function getPhaseAnalysis(recordArray, phaseName) {
-            const durationSec = recordArray.reduce(
-                (accumulator, currentValue) => accumulator + currentValue.duration, 0)
+            const startMin = recordArray.map(el => el.startTime).reduce((min, cur) => Math.min(min, cur))
+            const endMax = recordArray.map(el => el.endTime).reduce((max, cur) => Math.max(max, cur))
+            const durationSec = endMax - startMin
             const numTrans = recordArray.length
             const meanAndVar = getMeanAndVar(recordArray, 'duration')
 
@@ -93,7 +94,7 @@ class Report {
                 numTrans,
                 transPerSec: numTrans / durationSec,
                 transPerMinute: numTrans / durationSec * 60,
-                transMinSec: recordArray.map(el => el.duration).reduce((max, cur) => Math.min(max, cur)),
+                transMinSec: recordArray.map(el => el.duration).reduce((min, cur) => Math.min(min, cur)),
                 transMaxSec: recordArray.map(el => el.duration).reduce((max, cur) => Math.max(max, cur)),
                 transAvgSec: meanAndVar.mean,
                 transVariance: meanAndVar.variance,

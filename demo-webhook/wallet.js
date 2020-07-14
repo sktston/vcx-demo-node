@@ -14,7 +14,7 @@ async function walletAddRecord(type, id, value, tags, msg='') {
         tags: tags
     }
 
-    logger.debug(`walletAddRecord(${msg}): ${JSON.stringify(recordParam, null, 2)}`)
+    //logger.debug(`walletAddRecord(${msg}): ${JSON.stringify(recordParam, null, 2)}`)
     await Wallet.addRecord(recordParam)
 }
 
@@ -54,7 +54,7 @@ async function walletGetRecord(type, id, options, msg='') {
         throw new Error('walletGetRecord error')
     }
 
-    logger.debug(`walletGetRecord(${msg}): ${JSON.stringify(recordParam, null, 2)}`)
+    //logger.debug(`walletGetRecord(${msg}): ${JSON.stringify(recordParam, null, 2)}`)
     return record
 }
 
@@ -65,7 +65,7 @@ async function walletUpdateRecordValue(type, id, value, msg='') {
         value: value
     }
 
-    logger.debug(`walletUpdateRecordValue(${msg}): ${JSON.stringify(recordParam, null, 2)}`)
+    //logger.debug(`walletUpdateRecordValue(${msg}): ${JSON.stringify(recordParam, null, 2)}`)
     await Wallet.updateRecordValue(recordParam)
 }
 
