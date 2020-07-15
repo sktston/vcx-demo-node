@@ -8,6 +8,7 @@ const demoCommon = require('./common')
 const { getRandomInt } = require('./common')
 const logger = require('./logger')
 const url = require('url')
+const ip = require('ip');
 const isPortReachable = require('is-port-reachable')
 const { runScript } = require('./script-comon')
 const { shutdownVcx, downloadMessages, updateMessages, getVersion } = require('../dist/src/api/utils')
@@ -20,7 +21,7 @@ const utime = Math.floor(new Date() / 1000)
 const TAA_ACCEPT = process.env.TAA_ACCEPT === 'true' || false
 
 const provisionConfig = {
-  agency_url: 'http://localhost:8080',
+  agency_url: process.env.AGENCY_URL ? process.env.AGENCY_URL : 'http://localhost:8080',
   agency_did: 'VsKV7grR1BUE29mG2Fm2kX',
   agency_verkey: 'Hezce2UWMZ3wUhVkh2LfKSs8nDzWwzs2Win7EzNN3YaR',
   wallet_name: `node_vcx_demo_faber_issuer_wallet_${utime}`,
@@ -32,7 +33,7 @@ const provisionConfig = {
 const logLevel = process.env.VCX_LOG_LEVEL ? process.env.VCX_LOG_LEVEL : 'error'
 
 const ariesProtocolType = '4.0'
-const webHookUrl = process.env.WEBHOOK_URL ? process.env.WEBHOOK_URL : 'http://localhost:7201/notifications'
+const webHookUrl = 'http://' + ip.address() + ':7201/notifications/'
 const autoSendOffer = true
 let serverReady = false
 let numRequest = 0, numAck = 0, numReqCred = 0, numIssues = 0
@@ -212,13 +213,13 @@ async function runWebHookServer() {
       for (const message of dlMessages) {
         if (message.msgs.length < 1) {
           logger.error(`empty message: ${JSON.stringify(message, null, 2)}`)
-          throw new Error(`empty message error:${message}`)
+          throw new Error(`empty message: ${JSON.stringify(message, null, 2)}`)
         }
 
         try {
           await processMessage(message)
         } catch (err) {
-          logger.error(`process message: ${JSON.stringify(message, null, 2)}`)
+          logger.error(`processMessage error: ${err.message}`)
           process.exit(1)
         }
       }
@@ -262,7 +263,7 @@ async function processMessage(message) {
 
     if (payloadTypeName !== 'aries') {
       logger.error(`unknown payload type name: ${payloadTypeName}`)
-      continue
+      throw new Error(`unknown payload type name: ${payloadTypeName}`)
     }
 
     // STEP.3 - update connection from F to F2A
@@ -284,6 +285,7 @@ async function processMessage(message) {
 */
       } else {
         logger.error(`unexpected connection state: ${connectionState}`)
+        throw new Error(`unexpected connection state: ${connectionState}`)
       }
     }
     // STEP.5 - receive connection created ACK
@@ -298,6 +300,7 @@ async function processMessage(message) {
         await walletUpdateRecordValue('connection', pwDid, updateConnection)
       } else {
         logger.error(`unexpected connection state: ${connectionState}`)
+        throw new Error(`unexpected connection state: ${connectionState}`)
       }
       // STEP.6 - send credential offer
       // After issuing credential, issuer does not receive Ack for that
@@ -361,6 +364,7 @@ async function processMessage(message) {
         await walletUpdateRecordValue('credential', threadId, serialCredential)
       } else {
         logger.error(`unexpected credential state: ${connectionState}`)
+        throw new Error(`unexpected credential state: ${connectionState}`)
       }
 
       await credentialForAlice.release()
@@ -368,6 +372,7 @@ async function processMessage(message) {
     } else {
       logger.error(`msg: ${JSON.stringify(msg, null, 2)}`)
       logger.error(`unknown payload message type name: ${payloadMsgType}`)
+      throw new Error(`unknown payload message type name: ${payloadMsgType}`)
     }
   } //for (const msg of message.msgs)
 

@@ -6,6 +6,7 @@ const sleepPromise = require('sleep-promise')
 const demoCommon = require('./common')
 const logger = require('./logger')
 const url = require('url')
+const ip = require('ip');
 const isPortReachable = require('is-port-reachable')
 const { runScript } = require('./script-comon')
 const { shutdownVcx, downloadMessages, updateMessages, getVersion } = require('../dist/src/api/utils')
@@ -21,7 +22,7 @@ const axios = require('axios')
 const utime = Math.floor(new Date() / 1000)
 
 let provisionConfig = {
-  agency_url: 'http://localhost:8080',
+  agency_url: process.env.AGENCY_URL ? process.env.AGENCY_URL : 'http://localhost:8080',
   agency_did: 'VsKV7grR1BUE29mG2Fm2kX',
   agency_verkey: 'Hezce2UWMZ3wUhVkh2LfKSs8nDzWwzs2Win7EzNN3YaR',
   wallet_name: `node_vcx_demo_alice_wallet_${utime}`,
@@ -33,7 +34,7 @@ let provisionConfig = {
 const logLevel = process.env.VCX_LOG_LEVEL ? process.env.VCX_LOG_LEVEL : 'error'
 
 const ariesProtocolType = '4.0'
-const webHookUrl = process.env.WEBHOOK_URL ? process.env.WEBHOOK_URL : 'http://localhost:7203/notifications/'
+const webHookUrl = 'http://' + ip.address() + ':7203/notifications/'
 const inviteIssuerUrl = process.env.INVITE_ISSUER_URL ? process.env.INVITE_ISSUER_URL : 'http://localhost:7201/invitations'
 const inviteVerifierUrl = process.env.INVITE_VERIFIER_URL ? process.env.INVITE_VERIFIER_URL : 'http://localhost:7202/invitations'
 
@@ -74,6 +75,7 @@ async function runAliceMultiple (options) {
       numTrans = numAlice
     }
 
+    logger.verbose(`IP: ${ip.address()}`)
     logger.verbose(`Num CPUS: ${os.cpus().length}`)
 
     await runWebHookServer()
@@ -107,6 +109,7 @@ async function runAliceMultiple (options) {
 
           default:
             logger.error(`undefined cmd: ${msg.cmd}`)
+            throw new Error(`undefined cmd: ${msg.cmd}`)
         }
       })
 
@@ -151,6 +154,7 @@ async function runAliceMultiple (options) {
 
         default:
           logger.error(`Alice[${cluster.worker.id}] unknown master command`)
+          throw new Error(`Alice[${cluster.worker.id}] unknown master command`)
       }
     })
 
@@ -294,6 +298,7 @@ async function processMessage(message, aliceId, options) {
   for (const message of dlMessages) {
     if (message.msgs.length < 1) {
       logger.error(`Alice[${aliceId}] message: ${JSON.stringify(message, null, 2)}`)
+      throw new Error(`Alice[${aliceId}] message: ${JSON.stringify(message, null, 2)}`)
     }
 
     const pwDid = message.pairwiseDID
@@ -327,6 +332,7 @@ async function processMessage(message, aliceId, options) {
               await updateMessages(msgJsonData)
             } else {
               logger.error(`Alice[${aliceId}] unexpected connection state: ${connectionState}`)
+              throw new Error(`Alice[${aliceId}] unexpected connection state: ${connectionState}`)
             }
           }
           // STEP.13 - receive proof ACK
@@ -350,6 +356,7 @@ async function processMessage(message, aliceId, options) {
               await walletUpdateRecordValue('proof', threadId, serialProof)
             } else {
               logger.error(`Alice[${aliceId}] unexpected proof state: ${proofState}`)
+              throw new Error(`Alice[${aliceId}] unexpected proof state: ${proofState}`)
             }
 
             await proof.release()
@@ -360,6 +367,7 @@ async function processMessage(message, aliceId, options) {
           } else {
             logger.error(`Alice[${aliceId}] msg: ${JSON.stringify(msg, null, 2)}`)
             logger.error(`Alice[${aliceId}] unknown payload message type name: ${payloadMsgType}`)
+            throw new Error(`Alice[${aliceId}] unknown payload message type name: ${payloadMsgType}`)
           }
           break
         }
@@ -416,6 +424,7 @@ async function processMessage(message, aliceId, options) {
             await walletUpdateRecordValue('credential', threadId, serialCredential)
           } else {
             logger.error(`Alice[${aliceId}] unexpected credential state: ${credentialState}`)
+            throw new Error(`Alice[${aliceId}] unexpected credential state: ${credentialState}`)
           }
 
           await credential.release()
@@ -505,6 +514,7 @@ async function processMessage(message, aliceId, options) {
         default: {
           logger.error(`Alice[${aliceId}] msg: ${JSON.stringify(msg, null, 2)}`)
           logger.error(`Alice[${aliceId}] unknown payload type name: ${payloadTypeName}`)
+          throw new Error(`Alice[${aliceId}] unknown payload type name: ${payloadTypeName}`)
         }
       } //switch (payloadTypeName)
     } //for (const msg of message.msgs)

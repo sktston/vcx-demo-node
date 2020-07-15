@@ -114,17 +114,17 @@ class Report {
         const issueRecords = this.filterRecords([PhaseType.Issue])
         const verifyRecords = this.filterRecords([PhaseType.Verify])
 
-        const totalRecordsSec = Report.transRecordTime(this._records, 0.001)
         const onBoardRecordsSec = Report.transRecordTime(onBoardRecords, 0.001)
         const issueRecordsSec = Report.transRecordTime(issueRecords, 0.001)
         const verifyRecordsSec = Report.transRecordTime(verifyRecords, 0.001)
+        const totalRecordsSec = Report.transRecordTime(this._records, 0.001)
 
-        const totalAnalysis = getPhaseAnalysis(totalRecordsSec, PhaseType.None)
         const onBoardAnalysis = getPhaseAnalysis(onBoardRecordsSec, PhaseType.Onboard)
         const issueAnalysis = getPhaseAnalysis(issueRecordsSec, PhaseType.Issue)
         const verifyAnalysis = getPhaseAnalysis(verifyRecordsSec, PhaseType.Verify)
+        const totalAnalysis = getPhaseAnalysis(totalRecordsSec, PhaseType.None)
 
-        this._report = {totalAnalysis, onBoardAnalysis, issueAnalysis, verifyAnalysis}
+        this._report = { onBoardAnalysis, issueAnalysis, verifyAnalysis, totalAnalysis }
         return this._report
     }
 

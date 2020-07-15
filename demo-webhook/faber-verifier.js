@@ -5,6 +5,7 @@ const { setActiveTxnAuthorAgreementMeta, getLedgerAuthorAgreement } = require('.
 const demoCommon = require('./common')
 const logger = require('./logger')
 const url = require('url')
+const ip = require('ip');
 const isPortReachable = require('is-port-reachable')
 const { runScript } = require('./script-comon')
 const { shutdownVcx, downloadMessages, updateMessages, getVersion } = require('../dist/src/api/utils')
@@ -18,7 +19,7 @@ const utime = Math.floor(new Date() / 1000)
 const TAA_ACCEPT = process.env.TAA_ACCEPT === 'true' || false
 
 const provisionConfig = {
-  agency_url: 'http://localhost:8080',
+  agency_url: process.env.AGENCY_URL ? process.env.AGENCY_URL : 'http://localhost:8080',
   agency_did: 'VsKV7grR1BUE29mG2Fm2kX',
   agency_verkey: 'Hezce2UWMZ3wUhVkh2LfKSs8nDzWwzs2Win7EzNN3YaR',
   wallet_name: `node_vcx_demo_faber_verifier_wallet_${utime}`,
@@ -30,7 +31,7 @@ const provisionConfig = {
 const logLevel = process.env.VCX_LOG_LEVEL ? process.env.VCX_LOG_LEVEL : 'error'
 
 const ariesProtocolType = '4.0'
-const webHookUrl = process.env.WEBHOOK_URL ? process.env.WEBHOOK_URL : 'http://localhost:7202/notifications'
+const webHookUrl = 'http://' + ip.address() + ':7202/notifications/'
 const autoSendProofRequest = true
 let serverReady = false
 let numRequest = 0, numAck = 0, numPresent = 0, numVerify = 0
@@ -176,7 +177,7 @@ async function runWebHookServer() {
         try {
           await processMessage(message)
         } catch (err) {
-          logger.error(`process message: ${JSON.stringify(message, null, 2)}`)
+          logger.error(`processMessage error: ${err.message}`)
           process.exit(1)
         }
       }
@@ -240,6 +241,7 @@ async function processMessage(message) {
 */
           } else {
             logger.error(`unexpected request connection state[${numRequest}]: ${connectionState}`)
+            throw new Error(`unexpected request connection state[${numRequest}]: ${connectionState}`)
           }
         }
         // STEP.5 - receive connection created ACK
@@ -254,6 +256,7 @@ async function processMessage(message) {
             await walletUpdateRecordValue('connection', pwDid, updateConnection)
           } else {
             logger.error(`unexpected ack connection state[${numAck}]: ${connectionState}`)
+            throw new Error(`unexpected ack connection state[${numAck}]: ${connectionState}`)
           }
           // STEP.10 - request proof
           // After issuing credential, issuer does not receive Ack for that
@@ -301,6 +304,7 @@ async function processMessage(message) {
         else {
           logger.error(`msg: ${JSON.stringify(msg, null, 2)}`)
           logger.error(`unknown payload message type name: ${payloadMsgType}`)
+          throw new Error(`unknown payload message type name: ${payloadMsgType}`)
         }
         break
 
@@ -335,6 +339,7 @@ async function processMessage(message) {
           await walletUpdateRecordValue('proof', threadId, serialProof)
         } else {
           logger.error(`unexpected proof state: ${proofState}`)
+          throw new Error(`unexpected proof state: ${proofState}`)
         }
 
         await proof.release()
@@ -344,6 +349,7 @@ async function processMessage(message) {
       default:
         logger.error(`msg: ${JSON.stringify(msg, null, 2)}`)
         logger.error(`unknown payload type name: ${payloadTypeName}`)
+        throw new Error(`unknown payload type name: ${payloadTypeName}`)
     } //switch (payloadTypeName)
   } //for (const msg of message.msgs)
 
