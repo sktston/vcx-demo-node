@@ -187,7 +187,7 @@ async function runWebHookServer() {
 
   app.use(bodyParser.json())
 
-  app.post('/notifications/:aliceId', async function (req, res) {
+  app.post('/notifications/:aliceId', async (req, res) => {
     const { aliceId } = req.params
 
     // push web hook message to corresponding worker

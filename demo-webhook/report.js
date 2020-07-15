@@ -2,8 +2,9 @@
 
 const { performance } = require('perf_hooks')
 const logger = require('./logger')
+const { median, variance, quantile } = require('simple-statistics')
 
-const PhaseType = {
+    const PhaseType = {
     Onboard: 'Onboard',
     Issue: 'Issue',
     Verify: 'Verify',
@@ -44,7 +45,7 @@ class Report {
 
     addRecord(workerId, phase, startTime = this._startTime[phase], endTime = performance.now()) {
         const duration = endTime - startTime
-        this._records.push({workerId, phase, startTime, endTime, duration})
+        this._records.push({ workerId, phase, startTime, endTime, duration })
     }
 
     addRecordArray(recordArray) {
@@ -54,39 +55,42 @@ class Report {
     }
 
     getRecords(phaseFilter = [PhaseType.Onboard, PhaseType.Issue, PhaseType.Verify]) {
-        const records = []
-        this._records.forEach(element => {
-            if (phaseFilter.includes(element.phase)) {
-                records.push(element)
-            }
-        })
-
-        return records
+        return this._records.reduce((accumArray, current) => {
+                if (phaseFilter.includes(current.phase)) {
+                    accumArray.push(current)
+                }
+                return accumArray
+            }, []
+        )
     }
 
     static transRecordTime(recordArray, multiplier) {
-        const records = []
-        recordArray.forEach(element => {
-            records.push({
-                workerId: element.workerId,
-                phase: element.phase,
-                startTime: element.startTime * multiplier,
-                endTime: element.endTime * multiplier,
-                duration: element.duration * multiplier
-            })
-        })
-
-        return records
+        return recordArray.reduce((accumArray, current) => {
+                accumArray.push({
+                    workerId: current.workerId,
+                    phase: current.phase,
+                    startTime: current.startTime * multiplier,
+                    endTime: current.endTime * multiplier,
+                    duration: current.duration * multiplier
+                })
+                return accumArray
+            }, []
+        )
     }
 
     getReport() {
         // recordArray -> array of '{workerId, phase, startTime, endTime, duration}'
         function getPhaseAnalysis(recordArray, phaseName) {
-            const startMin = recordArray.map(el => el.startTime).reduce((min, cur) => Math.min(min, cur))
-            const endMax = recordArray.map(el => el.endTime).reduce((max, cur) => Math.max(max, cur))
+            const startMin = recordArray.map(el => el.startTime).reduce((min, current) => Math.min(min, current))
+            const endMax = recordArray.map(el => el.endTime).reduce((max, current) => Math.max(max, current))
             const durationSec = endMax - startMin
             const numTrans = recordArray.length
-            const meanAndVar = getMeanAndVar(recordArray, 'duration')
+            const durationArray = recordArray.map(el => el.duration).reduce((accumArray, current) => {
+                    accumArray.push(current)
+                    return accumArray
+                },
+                []
+            )
 
             return {
                 phaseName,
@@ -94,37 +98,12 @@ class Report {
                 numTrans,
                 transPerSec: numTrans / durationSec,
                 transPerMinute: numTrans / durationSec * 60,
-                transMinSec: recordArray.map(el => el.duration).reduce((min, cur) => Math.min(min, cur)),
-                transMaxSec: recordArray.map(el => el.duration).reduce((max, cur) => Math.max(max, cur)),
-                transAvgSec: meanAndVar.mean,
-                transVariance: meanAndVar.variance,
+                transMin: recordArray.map(el => el.duration).reduce((min, cur) => Math.min(min, cur)),
+                transMax: recordArray.map(el => el.duration).reduce((max, cur) => Math.max(max, cur)),
+                transMedian: median(durationArray),
+                transVariance: variance(durationArray),
+                transQuantile: quantile(durationArray, [0.95, 0.99]),
             }
-        }
-
-        function getMeanAndVar(recordArray, field) {
-            const arr = []
-            for (const record of recordArray) {
-                arr.push(record[field])
-            }
-
-            function getVariance(arr, mean) {
-                return arr.reduce(function(pre, cur) {
-                    pre = pre + Math.pow((cur - mean), 2)
-                    return pre
-                }, 0)
-            }
-
-            const meanTot = arr.reduce(function(pre, cur) {
-                return pre + cur
-            })
-            const total = getVariance(arr, meanTot / arr.length)
-
-            const res = {
-                mean: meanTot / arr.length,
-                variance: total / arr.length
-            }
-
-            return res
         }
 
         // sort by startTime
@@ -154,10 +133,14 @@ class Report {
             const phaseAnalysis = report[phase]
             logger.verbose()
             logger.verbose(`------ ${phaseAnalysis.phaseName} Performance ------`)
+            logger.verbose(`*** Throughput ***`)
             logger.verbose(`Duration ${phaseAnalysis.durationSec.toFixed(1)} secs to ${phaseAnalysis.numTrans} transactions.`)
             logger.verbose(`PerSec ${phaseAnalysis.transPerSec.toFixed(1)}  PerMinute ${phaseAnalysis.transPerMinute.toFixed(1)}`)
-            logger.verbose(`TransMinSec ${phaseAnalysis.transMinSec.toFixed(1)}  TransMaxSec ${phaseAnalysis.transMaxSec.toFixed(1)}`)
-            logger.verbose(`TransAvgSec ${phaseAnalysis.transAvgSec.toFixed(1)}  TransVariance ${phaseAnalysis.transVariance.toFixed(2)}`)
+            logger.verbose()
+            logger.verbose(`*** Transaction time (sec) ***`)
+            logger.verbose(`Min ${phaseAnalysis.transMin.toFixed(1)}  Max ${phaseAnalysis.transMax.toFixed(1)}`)
+            logger.verbose(`Median ${phaseAnalysis.transMedian.toFixed(1)}  Variance ${phaseAnalysis.transVariance.toFixed(2)}`)
+            logger.verbose(`Quantile[0.95, 0.99]=[${phaseAnalysis.transQuantile.map(el => el.toFixed(1))}]`)
             logger.verbose('------------------------------------')
         }
     }

@@ -199,7 +199,7 @@ async function runWebHookServer() {
 
   app.use(bodyParser.json())
 
-  app.post('/notifications', async function (req, res) {
+  app.post('/notifications', async (req, res) => {
     if (serverReady) {
       const downloadMessagesParam = {
         //status: req.body.msgStatusCode,
