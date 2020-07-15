@@ -93,6 +93,7 @@ async function runAliceMultiple (options) {
             // start next transaction
             if (numStart < numCycles || options.infinite) {
               numStart += 1
+              logger.verbose(`Running cycle number: ${numStart}/${numCycles}`)
               worker.send({cmd: 'aliceStart'})
             }
 
