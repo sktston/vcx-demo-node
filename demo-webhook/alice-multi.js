@@ -68,11 +68,11 @@ async function runAliceMultiple (options) {
   if (cluster.isMaster) {
     let numStart = 0
     let numDone = 0
-    let numTrans = options.numTransactions
+    let numCycles = options.numCycles
     const numAlice = options.numAlice
 
-    if (numTrans < numAlice) {
-      numTrans = numAlice
+    if (numCycles < numAlice) {
+      numCycles = numAlice
     }
 
     logger.verbose(`IP: ${ip.address()}`)
@@ -91,13 +91,13 @@ async function runAliceMultiple (options) {
             report.addRecordArray(msg.report)
 
             // start next transaction
-            if (numStart < numTrans || options.infinite) {
+            if (numStart < numCycles || options.infinite) {
               numStart += 1
               worker.send({cmd: 'aliceStart'})
             }
 
             // all transactions are done successfully
-            if (numDone >= numTrans && !options.infinite) {
+            if (numDone >= numCycles && !options.infinite) {
               await exitAllWorkers(true)
             }
             break
@@ -138,8 +138,6 @@ async function runAliceMultiple (options) {
           break
 
         case 'aliceExit':
-          logger.verbose(`Alice[${cluster.worker.id}] shutdown VCX with deleting wallet`)
-          await shutdownVcx(true)
           process.exit(0)
           break
 
@@ -243,22 +241,22 @@ async function runAlice (aliceId, options) {
     } else {
       logger.info(`Alice[${aliceId}] Webhook url will not be used`)
     }
-
-    report.setStartTime(PhaseType.Onboard)
-
-    logger.info(`Alice[${aliceId}] #8 Provision an agent and wallet, get back configuration details`)
-    provisionConfig.wallet_name = provisionConfig.wallet_name + `_${aliceId}`
-    const agentProvision = await demoCommon.provisionAgentInAgency(provisionConfig)
-
-    agentProvision.institution_name = 'faber'
-    agentProvision.institution_logo_url = 'http://robohash.org/234'
-    agentProvision.genesis_path = `${__dirname}/docker.txn`
-
-    logger.info(`Alice[${aliceId}] #9 Initialize libvcx with new configuration`)
-    await demoCommon.initVcxWithProvisionedAgentConfig(agentProvision)
-
-    report.addRecord(aliceId, PhaseType.Onboard)
   }
+
+  report.setStartTime(PhaseType.Onboard)
+
+  logger.info(`Alice[${aliceId}] #8 Provision an agent and wallet, get back configuration details`)
+  provisionConfig.wallet_name = `node_vcx_demo_alice_wallet_${utime}` + `_${aliceId}`
+  const agentProvision = await demoCommon.provisionAgentInAgency(provisionConfig)
+
+  agentProvision.institution_name = 'faber'
+  agentProvision.institution_logo_url = 'http://robohash.org/234'
+  agentProvision.genesis_path = `${__dirname}/docker.txn`
+
+  logger.info(`Alice[${aliceId}] #9 Initialize libvcx with new configuration`)
+  await demoCommon.initVcxWithProvisionedAgentConfig(agentProvision)
+
+  report.addRecord(aliceId, PhaseType.Onboard)
 
   // STEP.2 - receive invitation & create connection A2F
   // accept invitation
@@ -282,8 +280,8 @@ async function runAlice (aliceId, options) {
   const serialConnectionToFaber = JSON.stringify(await connectionToFaber.serialize())
   const connectionToFaberPwDid = await connectionToFaber.getPwDid()
 
-  await walletAddRecord('connection', connectionToFaberPwDid, serialConnectionToFaber, {})
   await connectionToFaber.release()
+  await walletAddRecord('connection', connectionToFaberPwDid, serialConnectionToFaber, {})
 }
 
 async function processMessage(message, aliceId, options) {
@@ -352,6 +350,8 @@ async function processMessage(message, aliceId, options) {
 
             if (proofState === StateType.Accepted) {
               logger.info(`Alice[${aliceId}] Faber received & verified the proof`)
+              report.addRecord(aliceId, PhaseType.Verify)
+
               const serialProof = JSON.stringify(await proof.serialize())
               await walletUpdateRecordValue('proof', threadId, serialProof)
             } else {
@@ -360,9 +360,11 @@ async function processMessage(message, aliceId, options) {
             }
 
             await proof.release()
-            report.addRecord(aliceId, PhaseType.Verify)
-
             logger.verbose(`Alice[${aliceId}] proof is verified`)
+
+            logger.verbose(`Alice[${aliceId}] shutdown VCX with deleting wallet`)
+            await shutdownVcx(true)
+
             process.send({cmd: 'aliceDone', report: report.getRecords()})
           } else {
             logger.error(`Alice[${aliceId}] msg: ${JSON.stringify(msg, null, 2)}`)
@@ -420,6 +422,8 @@ async function processMessage(message, aliceId, options) {
 
           if (credentialState === StateType.Accepted) {
             logger.info(`Alice[${aliceId}] #16 Accepted credential from faber`)
+            report.addRecord(aliceId, PhaseType.Issue)
+
             const serialCredential = JSON.stringify(await credential.serialize())
             await walletUpdateRecordValue('credential', threadId, serialCredential)
           } else {
@@ -430,10 +434,10 @@ async function processMessage(message, aliceId, options) {
           await credential.release()
           logger.verbose(`Alice[${aliceId}] End of issue credential`)
 
-          report.addRecord(aliceId, PhaseType.Issue)
-
           // proceed to verify
           if (!isValidJson(options.verifierInvite) && options.verifierInvite !== 'auto') {
+            logger.verbose(`Alice[${aliceId}] shutdown VCX with deleting wallet`)
+            await shutdownVcx(true)
             process.send({cmd: 'aliceDone', report: report.getRecords()})
           } else {
             if (options.verifierInvite === 'auto') {
@@ -459,8 +463,8 @@ async function processMessage(message, aliceId, options) {
             const serialConnectionToFaber = JSON.stringify(await connectionToFaber.serialize())
             const connectionToFaberPwDid = await connectionToFaber.getPwDid()
 
-            await walletAddRecord('connection', connectionToFaberPwDid, serialConnectionToFaber, {})
             await connectionToFaber.release()
+            await walletAddRecord('connection', connectionToFaberPwDid, serialConnectionToFaber, {})
           }
 
           break
@@ -500,8 +504,8 @@ async function processMessage(message, aliceId, options) {
           const serialProof = JSON.stringify(await proof.serialize())
           const threadId = JSON.parse(serialProof).data.prover_sm.thread_id
 
-          await walletAddRecord('proof', threadId, serialProof, {})
           await proof.release()
+          await walletAddRecord('proof', threadId, serialProof, {})
 
           // Update agency message status manually (xxxUpdateState automatically update message status, but not here)
           const msgJsonData = {
@@ -571,10 +575,10 @@ const optionDefinitions = [
     defaultValue: 0
   },
   {
-    name: 'numTransactions',
-    alias: 't',
+    name: 'numCycles',
+    alias: 'c',
     type: Number,
-    description: 'Number of Alice\'s issue/verify',
+    description: 'Number of Alice\'s running cycles (1 cycle = onboard/issue/verify)',
     defaultValue: 1
   },
   {
