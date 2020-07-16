@@ -324,11 +324,6 @@ async function processMessage(message, aliceId, options) {
             if (connectionState === StateType.Accepted) {
               const serialConnectionToFaber = JSON.stringify(await connectionToFaber.serialize())
               await walletUpdateRecordValue('connection', pwDid, serialConnectionToFaber)
-
-              const msgJsonData = {
-                msgJson: JSON.stringify([{pairwiseDID: pwDid, uids: [msg.uid]}])
-              }
-              await updateMessages(msgJsonData)
             } else {
               logger.error(`Alice[${aliceId}] unexpected connection state: ${connectionState}`)
               throw new Error(`Alice[${aliceId}] unexpected connection state: ${connectionState}`)
@@ -360,7 +355,7 @@ async function processMessage(message, aliceId, options) {
               throw new Error(`Alice[${aliceId}] unexpected proof state: ${proofState}`)
             }
 
-            await proof.release()
+            //await proof.release()
             logger.verbose(`Alice[${aliceId}] proof is verified`)
 
             logger.verbose(`Alice[${aliceId}] shutdown VCX with deleting wallet`)
@@ -396,13 +391,13 @@ async function processMessage(message, aliceId, options) {
           const threadId = JSON.parse(serialCredential).data.holder_sm.thread_id
           await walletAddRecord('credential', threadId, serialCredential, {})
 
+          //await credential.release()
+
           // Update agency message status manually (xxxUpdateState automatically update message status, but not here)
           const msgJsonData = {
             msgJson: JSON.stringify([{pairwiseDID: pwDid, uids: [msg.uid]}])
           }
           await updateMessages(msgJsonData)
-
-          await credential.release()
           break
         }
 
@@ -432,7 +427,7 @@ async function processMessage(message, aliceId, options) {
             throw new Error(`Alice[${aliceId}] unexpected credential state: ${credentialState}`)
           }
 
-          await credential.release()
+          //await credential.release()
           logger.verbose(`Alice[${aliceId}] End of issue credential`)
 
           // proceed to verify
@@ -504,9 +499,9 @@ async function processMessage(message, aliceId, options) {
 
           const serialProof = JSON.stringify(await proof.serialize())
           const threadId = JSON.parse(serialProof).data.prover_sm.thread_id
-
-          await proof.release()
           await walletAddRecord('proof', threadId, serialProof, {})
+
+          //await proof.release()
 
           // Update agency message status manually (xxxUpdateState automatically update message status, but not here)
           const msgJsonData = {
