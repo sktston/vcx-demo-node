@@ -39,6 +39,7 @@ const inviteIssuerUrl = process.env.INVITE_ISSUER_URL ? process.env.INVITE_ISSUE
 const inviteVerifierUrl = process.env.INVITE_VERIFIER_URL ? process.env.INVITE_VERIFIER_URL : 'http://localhost:7202/invitations'
 
 const report = new Report()
+const maxRetry = 3
 let initVCX = false
 let numResponse = 0, numAck = 0, numCredOffer = 0, numCredential = 0, numPresent = 0
 
@@ -248,14 +249,25 @@ async function runAlice (aliceId, options) {
 
   logger.info(`Alice[${aliceId}] #8 Provision an agent and wallet, get back configuration details`)
   provisionConfig.wallet_name = `node_vcx_demo_alice_wallet_${utime}` + `_${aliceId}`
-  const agentProvision = await demoCommon.provisionAgentInAgency(provisionConfig)
 
+  const agentProvision = await demoCommon.provisionAgentInAgency(provisionConfig)
   agentProvision.institution_name = 'faber'
   agentProvision.institution_logo_url = 'http://robohash.org/234'
   agentProvision.genesis_path = `${__dirname}/docker.txn`
 
   logger.info(`Alice[${aliceId}] #9 Initialize libvcx with new configuration`)
-  await demoCommon.initVcxWithProvisionedAgentConfig(agentProvision)
+
+  let retry = maxRetry
+  do {
+    try {
+      await demoCommon.initVcxWithProvisionedAgentConfig(agentProvision)
+      retry = 0
+    } catch (err) {
+      logger.warn(`initVcxWithProvisionedAgentConfig: ${err.message}`)
+      await sleepPromise(1000 * Math.pow(2, maxRetry - retry))
+      retry -= 1
+    }
+  } while(retry > 0)
 
   report.addRecord(aliceId, PhaseType.Onboard)
 
@@ -355,7 +367,7 @@ async function processMessage(message, aliceId, options) {
               throw new Error(`Alice[${aliceId}] unexpected proof state: ${proofState}`)
             }
 
-            //await proof.release()
+            await proof.release()
             logger.verbose(`Alice[${aliceId}] proof is verified`)
 
             logger.verbose(`Alice[${aliceId}] shutdown VCX with deleting wallet`)
@@ -391,7 +403,7 @@ async function processMessage(message, aliceId, options) {
           const threadId = JSON.parse(serialCredential).data.holder_sm.thread_id
           await walletAddRecord('credential', threadId, serialCredential, {})
 
-          //await credential.release()
+          await credential.release()
 
           // Update agency message status manually (xxxUpdateState automatically update message status, but not here)
           const msgJsonData = {
@@ -427,7 +439,7 @@ async function processMessage(message, aliceId, options) {
             throw new Error(`Alice[${aliceId}] unexpected credential state: ${credentialState}`)
           }
 
-          //await credential.release()
+          await credential.release()
           logger.verbose(`Alice[${aliceId}] End of issue credential`)
 
           // proceed to verify
@@ -501,7 +513,7 @@ async function processMessage(message, aliceId, options) {
           const threadId = JSON.parse(serialProof).data.prover_sm.thread_id
           await walletAddRecord('proof', threadId, serialProof, {})
 
-          //await proof.release()
+          await proof.release()
 
           // Update agency message status manually (xxxUpdateState automatically update message status, but not here)
           const msgJsonData = {
