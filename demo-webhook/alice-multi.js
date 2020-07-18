@@ -202,6 +202,27 @@ async function runWebHookServer() {
   app.listen(port, () => logger.verbose(`Server listening on port ${port}...`))
 }
 
+
+async function retryRun(retryCount = 1, func, argument) {
+  let retry = retryCount, result
+  do {
+    try {
+      result = await func(argument)
+      retry = -1
+    } catch (err) {
+      logger.warn(`${func.name}: ${err.message}`)
+      await sleepPromise(1000 * Math.pow(2, maxRetry - retry))
+      retry -= 1
+    }
+  } while(retry > 0)
+
+  if (retry === 0) {
+    throw new Error(`${func.name} exceeds retry number`)
+  }
+
+  return result
+}
+
 async function runAlice (aliceId, options) {
   report.clearRecords()
 
@@ -250,24 +271,16 @@ async function runAlice (aliceId, options) {
   logger.info(`Alice[${aliceId}] #8 Provision an agent and wallet, get back configuration details`)
   provisionConfig.wallet_name = `node_vcx_demo_alice_wallet_${utime}` + `_${aliceId}`
 
-  const agentProvision = await demoCommon.provisionAgentInAgency(provisionConfig)
+  //const agentProvision = await demoCommon.provisionAgentInAgency(provisionConfig)
+  const agentProvision = await retryRun(maxRetry, demoCommon.provisionAgentInAgency, provisionConfig)
   agentProvision.institution_name = 'faber'
   agentProvision.institution_logo_url = 'http://robohash.org/234'
   agentProvision.genesis_path = `${__dirname}/docker.txn`
 
   logger.info(`Alice[${aliceId}] #9 Initialize libvcx with new configuration`)
 
-  let retry = maxRetry
-  do {
-    try {
-      await demoCommon.initVcxWithProvisionedAgentConfig(agentProvision)
-      retry = 0
-    } catch (err) {
-      logger.warn(`initVcxWithProvisionedAgentConfig: ${err.message}`)
-      await sleepPromise(1000 * Math.pow(2, maxRetry - retry))
-      retry -= 1
-    }
-  } while(retry > 0)
+  // demoCommon.initVcxWithProvisionedAgentConfig(agentProvision)
+  await retryRun(maxRetry, demoCommon.initVcxWithProvisionedAgentConfig, agentProvision)
 
   report.addRecord(aliceId, PhaseType.Onboard)
 
