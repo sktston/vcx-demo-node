@@ -23,7 +23,8 @@ export interface ICredentialDefCreateData {
   name: string,
   schemaId: string,
   revocationDetails: IRevocationDetails,
-  paymentHandle: number
+  paymentHandle: number,
+  tag: string
 }
 
 /**
@@ -108,7 +109,8 @@ export class CredentialDef extends VCXBase<ICredentialDefData> {
     paymentHandle,
     revocationDetails,
     schemaId,
-    sourceId
+    sourceId,
+    tag
   }: ICredentialDefCreateData): Promise<CredentialDef> {
     // Todo: need to add params for tag and config
     const tailsFile = revocationDetails.tailsFile
@@ -128,7 +130,7 @@ export class CredentialDef extends VCXBase<ICredentialDefData> {
         name,
         schemaId,
         issuerDid,
-        'tag1',
+        tag,
         JSON.stringify(revocation),
         paymentHandle,
       cb

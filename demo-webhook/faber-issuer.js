@@ -145,6 +145,7 @@ async function runFaber (options) {
   await schema.release()
 
   logger.info('#4 Create a new credential definition on the ledger')
+  const tag = `tag.${getRandomInt(1, 101)}.${getRandomInt(1, 101)}.${getRandomInt(1, 101)}`
   const data = {
     name: `DemoCredential_${utime}`,
     paymentHandle: 0,
@@ -153,7 +154,9 @@ async function runFaber (options) {
       tailsFile: 'tails.txt'
     },
     schemaId: schemaId,
-    sourceId: `CredentialDefSourceId_${utime}`
+    sourceId: `CredentialDefSourceId_${utime}`,
+    // add by dr.jhyun
+    tag
   }
   const credDef = await CredentialDef.create(data)
   const credDefId = await credDef.getCredDefId()
