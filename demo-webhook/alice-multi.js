@@ -276,6 +276,7 @@ async function runAlice (aliceId, options) {
   agentProvision.institution_name = 'faber'
   agentProvision.institution_logo_url = 'http://robohash.org/234'
   agentProvision.genesis_path = `${__dirname}/docker.txn`
+  agentProvision.pool_config = '{"timeout":60}'
 
   logger.info(`Alice[${aliceId}] #9 Initialize libvcx with new configuration`)
 
