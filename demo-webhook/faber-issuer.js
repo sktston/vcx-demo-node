@@ -146,14 +146,14 @@ async function runFaber (options) {
 
   logger.info('#4 Create a new credential definition on the ledger')
   const data = {
-    name: 'DemoCredential123',
+    name: `DemoCredential_${utime}`,
     paymentHandle: 0,
     revocation: false,
     revocationDetails: {
       tailsFile: 'tails.txt'
     },
     schemaId: schemaId,
-    sourceId: 'testCredentialDefSourceId123'
+    sourceId: `CredentialDefSourceId_${utime}`
   }
   const credDef = await CredentialDef.create(data)
   const credDefId = await credDef.getCredDefId()
@@ -278,12 +278,6 @@ async function processMessage(message) {
         const newPwDid = await connectionToAlice.getPwDid()
         const serialConnectionToAlice = JSON.stringify(await connectionToAlice.serialize())
         await walletAddRecord('connection', newPwDid, serialConnectionToAlice, {})
-/*
-        const msgJsonData = {
-          msgJson: JSON.stringify([ { pairwiseDID: pwDid, uids: [msg.uid] } ])
-        }
-        await updateMessages(msgJsonData)
-*/
       } else {
         logger.error(`unexpected connection state: ${connectionState}`)
         throw new Error(`unexpected connection state: ${connectionState}`)

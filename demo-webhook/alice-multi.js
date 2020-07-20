@@ -271,8 +271,8 @@ async function runAlice (aliceId, options) {
   logger.info(`Alice[${aliceId}] #8 Provision an agent and wallet, get back configuration details`)
   provisionConfig.wallet_name = `node_vcx_demo_alice_wallet_${utime}` + `_${aliceId}`
 
-  //const agentProvision = await demoCommon.provisionAgentInAgency(provisionConfig)
-  const agentProvision = await retryRun(maxRetry, demoCommon.provisionAgentInAgency, provisionConfig)
+  const agentProvision = await demoCommon.provisionAgentInAgency(provisionConfig)
+  //const agentProvision = await retryRun(maxRetry, demoCommon.provisionAgentInAgency, provisionConfig)
   agentProvision.institution_name = 'faber'
   agentProvision.institution_logo_url = 'http://robohash.org/234'
   agentProvision.genesis_path = `${__dirname}/docker.txn`
@@ -280,8 +280,8 @@ async function runAlice (aliceId, options) {
 
   logger.info(`Alice[${aliceId}] #9 Initialize libvcx with new configuration`)
 
-  // demoCommon.initVcxWithProvisionedAgentConfig(agentProvision)
-  await retryRun(maxRetry, demoCommon.initVcxWithProvisionedAgentConfig, agentProvision)
+   await demoCommon.initVcxWithProvisionedAgentConfig(agentProvision)
+  //await retryRun(maxRetry, demoCommon.initVcxWithProvisionedAgentConfig, agentProvision)
 
   report.addRecord(aliceId, PhaseType.Onboard)
 
