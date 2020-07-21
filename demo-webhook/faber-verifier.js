@@ -14,6 +14,7 @@ const { walletAddRecord, walletGetRecord, walletUpdateRecordValue } = require('.
 const express = require('express')
 const bodyParser = require('body-parser')
 
+const app = express()
 const utime = Math.floor(new Date() / 1000)
 
 const TAA_ACCEPT = process.env.TAA_ACCEPT === 'true' || false
@@ -58,7 +59,7 @@ let numRequest = 0, numAck = 0, numPresent = 0, numVerify = 0
  ***/
 
 async function runFaber (options) {
-  await runWebHookServer()
+  runWebHookServer()
 
   await demoCommon.initLibNullPay()
 
@@ -154,53 +155,62 @@ async function runFaber (options) {
 }
 
 async function runWebHookServer() {
-  const app = express()
   const port = url.parse(webHookUrl).port
+  const asyncHandler = fn => (req, res, next) => {
+    return Promise
+        .resolve(fn(req, res, next))
+        .catch(function (err) {
+          logger.error(`${err.message}`)
+          res.status(500).send({ message: `${err.message}` })
+          process.exit(1)
+        })
+  }
 
   app.use(bodyParser.json())
 
-  app.post('/notifications', async (req, res) => {
-    if (serverReady) {
-      const downloadMessagesParam = {
-        //status: req.body.msgStatusCode,
-        uids: req.body.msgUid,
-        pairwiseDids: req.body.pwDid,
-      }
-      const dlMessages = JSON.parse(await downloadMessages(downloadMessagesParam))
-      logger.debug(`dlMessages: ${JSON.stringify(dlMessages, null, 2)}`)
-
-      for (const message of dlMessages) {
-        if (message.msgs.length < 1) {
-          logger.error(`empty message: ${JSON.stringify(message, null, 2)}`)
-          throw new Error(`empty message error:${message}`)
-        }
-
-        try {
-          await processMessage(message)
-        } catch (err) {
-          logger.error(`processMessage error: ${err.message}`)
-          process.exit(1)
-        }
-      }
-
-      res.status(200).send()
-    } else {
+  app.use((req, res, next) => {
+    if (!serverReady) {
       logger.error('Server is not ready')
       res.status(500).send({ message: 'Server is not ready' })
+    } else {
+      next()
     }
   })
 
-  app.get('/invitations', async function (req, res) {
-    if (serverReady) {
-      const record = await walletGetRecord('invite', 'defaultInvite', {})
-      const inviteDetails = JSON.parse(JSON.parse(record).value)
-      logger.debug(`inviteDetails: ${JSON.stringify(inviteDetails)}`)
-      res.status(200).json(inviteDetails)
-    } else {
-      logger.error('Server is not ready')
-      res.status(500).send({ message: 'Server is not ready' })
+  app.post('/notifications', asyncHandler(async (req, res) => {
+    const downloadMessagesParam = {
+      //status: req.body.msgStatusCode,
+      uids: req.body.msgUid,
+      pairwiseDids: req.body.pwDid,
     }
-  })
+    const dlMessages = JSON.parse(await downloadMessages(downloadMessagesParam))
+    logger.debug(`dlMessages: ${JSON.stringify(dlMessages, null, 2)}`)
+
+    for (const message of dlMessages) {
+      if (message.msgs.length < 1) {
+        throw new Error(`empty message: ${JSON.stringify(message, null, 2)}`)
+      }
+
+      try {
+        await processMessage(message)
+      } catch (err) {
+        throw new Error(`processMessage error: ${err.message}`)
+      }
+    }
+
+    res.status(200).send()
+  }))
+
+  app.get('/invitations', asyncHandler(async (req, res) => {
+    const record = await walletGetRecord('invite', 'defaultInvite', {})
+    const inviteDetails = JSON.parse(JSON.parse(record).value)
+    logger.debug(`inviteDetails: ${JSON.stringify(inviteDetails)}`)
+    res.status(200).json(inviteDetails)
+  }))
+
+  app.use(asyncHandler(async (req, res, next) => {
+    throw new Error(`Your request: '${req.originalUrl}' didn't reach any handler.`)
+  }))
 
   app.listen(port, () => logger.verbose(`Server listening on port ${port}...`))
 }

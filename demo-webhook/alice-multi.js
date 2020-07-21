@@ -19,6 +19,7 @@ const cluster = require('cluster')
 const os = require('os')
 const axios = require('axios')
 
+const app = express()
 const utime = Math.floor(new Date() / 1000)
 
 let provisionConfig = {
@@ -79,7 +80,7 @@ async function runAliceMultiple (options) {
     logger.verbose(`IP: ${ip.address()}`)
     logger.verbose(`Num CPUS: ${os.cpus().length}`)
 
-    await runWebHookServer()
+    runWebHookServer()
 
     cluster.schedulingPolicy = cluster.SCHED_RR
     for (let i = 0; i < options.numAlice; i++) {
@@ -186,18 +187,30 @@ async function exitAllWorkers(print) {
 }
 
 async function runWebHookServer() {
-  const app = express()
   const port = url.parse(webHookUrl).port
+  const asyncHandler = fn => (req, res, next) => {
+    return Promise
+        .resolve(fn(req, res, next))
+        .catch(function (err) {
+          logger.error(`${err.message}`)
+          res.status(500).send({ message: `${err.message}` })
+          process.exit(1)
+        })
+  }
 
   app.use(bodyParser.json())
 
-  app.post('/notifications/:aliceId', async (req, res) => {
+  app.post('/notifications/:aliceId', asyncHandler(async (req, res) => {
     const { aliceId } = req.params
 
     // push web hook message to corresponding worker
     cluster.workers[aliceId].send({ cmd: 'aliceMessage', body: req.body })
     res.status(200).send()
-  })
+  }))
+
+  app.use(asyncHandler(async (req, res, next) => {
+    throw new Error(`Your request: '${req.originalUrl}' didn't reach any handler.`)
+  }))
 
   app.listen(port, () => logger.verbose(`Server listening on port ${port}...`))
 }
