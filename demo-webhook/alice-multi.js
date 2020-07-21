@@ -203,20 +203,21 @@ async function runWebHookServer() {
 }
 
 
-async function retryRun(retryCount = 1, func, argument) {
-  let retry = retryCount, result
+async function retryRun(retry = 0, func, argument) {
+  let result, trial = retry + 1
+
   do {
     try {
       result = await func(argument)
-      retry = -1
+      trial = -1
     } catch (err) {
-      logger.warn(`${func.name}: ${err.message}`)
-      await sleepPromise(1000 * Math.pow(2, maxRetry - retry))
-      retry -= 1
+      logger.warn(`${func.name}: ${err.message}: ${trial}`)
+      await sleepPromise(1000 * Math.pow(2, retry+1-trial))
+      trial -= 1
     }
-  } while(retry > 0)
+  } while(trial > 0)
 
-  if (retry === 0) {
+  if (trial === 0) {
     throw new Error(`${func.name} exceeds retry number`)
   }
 
@@ -272,16 +273,16 @@ async function runAlice (aliceId, options) {
   provisionConfig.wallet_name = `node_vcx_demo_alice_wallet_${utime}` + `_${aliceId}`
 
   const agentProvision = await demoCommon.provisionAgentInAgency(provisionConfig)
-  //const agentProvision = await retryRun(maxRetry, demoCommon.provisionAgentInAgency, provisionConfig)
   agentProvision.institution_name = 'faber'
   agentProvision.institution_logo_url = 'http://robohash.org/234'
   agentProvision.genesis_path = `${__dirname}/docker.txn`
-  agentProvision.pool_config = '{"timeout":60}'
+  agentProvision.pool_config = '{"timeout":20}'
 
   logger.info(`Alice[${aliceId}] #9 Initialize libvcx with new configuration`)
 
-   await demoCommon.initVcxWithProvisionedAgentConfig(agentProvision)
-  //await retryRun(maxRetry, demoCommon.initVcxWithProvisionedAgentConfig, agentProvision)
+  // await demoCommon.initVcxWithProvisionedAgentConfig(agentProvision)
+  // avoiding error: Can not open Pool Ledger Pool "pool1" does not exist ==>
+  await retryRun(maxRetry, demoCommon.initVcxWithProvisionedAgentConfig, agentProvision)
 
   report.addRecord(aliceId, PhaseType.Onboard)
 

@@ -102,7 +102,7 @@ async function runFaber (options) {
   agentProvision.institution_name = 'faber'
   agentProvision.institution_logo_url = 'http://robohash.org/234'
   agentProvision.genesis_path = `${__dirname}/docker.txn`
-  agentProvision.pool_config = '{"timeout":60}'
+  agentProvision.pool_config = '{"timeout":20}'
 
   logger.info(`#2 Using following agent provision to initialize VCX ${JSON.stringify(agentProvision, null, 2)}`)
   await demoCommon.initVcxWithProvisionedAgentConfig(agentProvision)

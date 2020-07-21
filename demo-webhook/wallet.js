@@ -37,18 +37,18 @@ async function walletGetRecord(type, id, options, msg='') {
         id: id,
         options: options
     }
-    let record = undefined, retry = maxRetry
+    let record = undefined, trial = maxRetry+1
 
     do {
         try {
             record = await Wallet.getRecord(recordParam)
-            retry = 0
+            trial = 0
         } catch (err) {
             logger.warn(`walletGetRecord(${msg}): ${JSON.stringify(recordParam, null, 2)} --> ${err.message}`)
-            await sleepPromise(1000 * Math.pow(2, maxRetry - retry))
-            retry -= 1
+            await sleepPromise(1000 * Math.pow(2, maxRetry+1-trial))
+            trial -= 1
         }
-    } while(retry > 0)
+    } while(trial > 0)
 
     if (record === undefined || !isValidJson(record)) {
         throw new Error('walletGetRecord error')

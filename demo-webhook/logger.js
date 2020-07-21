@@ -3,16 +3,16 @@ const { label } = format
 
 const prettyFormatter = format.combine(
   format.printf(
-    info => `${info.label} [${info.level}]: ${info.message}`
+    info => `${info.label}[${info.timestamp}] [${info.level}]: ${info.message}`
   )
 )
 
 const logger = createLogger({
-//  level: process.env.LOG_LEVEL ? process.env.LOG_LEVEL : 'debug',
-  level: process.env.LOG_LEVEL ? process.env.LOG_LEVEL : 'verbose',
+  level: process.env.LOG_LEVEL ? process.env.LOG_LEVEL : 'verbose', // 'debug'
   format: format.combine(
-    label({ label: 'VCX Node demo:' }),
+    label({ label: '' }),
     format.colorize({ all: true }),
+    format.timestamp({ format: 'MM-DD HH:mm:ss' }),
     prettyFormatter
   ),
   transports: [
