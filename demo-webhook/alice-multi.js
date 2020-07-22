@@ -40,7 +40,7 @@ const inviteIssuerUrl = process.env.INVITE_ISSUER_URL ? process.env.INVITE_ISSUE
 const inviteVerifierUrl = process.env.INVITE_VERIFIER_URL ? process.env.INVITE_VERIFIER_URL : 'http://localhost:7202/invitations'
 
 const report = new Report()
-const maxRetry = 3
+const maxRetry = 5
 let initVCX = false
 let numResponse = 0, numAck = 0, numCredOffer = 0, numCredential = 0, numPresent = 0
 
@@ -173,13 +173,11 @@ async function exitAllWorkers(print) {
     cluster.workers[id].send({cmd: 'aliceExit'})
   }
 
-  // wait all workers exits
-  while (cluster.workers.length) {
+  while (cluster.workers[1]) {
     await sleepPromise(100)
   }
 
   if (print) {
-    await sleepPromise(2000)
     report.print(report.getReport())
   }
 
@@ -191,9 +189,10 @@ async function runWebHookServer() {
   const asyncHandler = fn => (req, res, next) => {
     return Promise
         .resolve(fn(req, res, next))
-        .catch(function (err) {
+        .catch(async function (err) {
           logger.error(`${err.message}`)
           res.status(500).send({ message: `${err.message}` })
+          await exitAllWorkers(false)
           process.exit(1)
         })
   }
@@ -252,6 +251,7 @@ async function runAlice (aliceId, options) {
     logger.info(`LibVCX Version: ${libVcxVersion}`)
     if (libVcxVersion.substr(0, 3) < 0.8) {
       logger.error(`LibVCX version must be higher than 0.8`)
+      process.send({cmd: 'exitAll'})
       process.exit(1)
     }
 
@@ -652,12 +652,12 @@ function isValidJson(str) {
 function areOptionsValid (options) {
   const allowedCommMethods = ['aries', 'legacy']
   if (!(allowedCommMethods.includes(options.comm))) {
-    console.error(`Unknown communication method ${options.comm}. Only ${JSON.stringify(allowedCommMethods)} are allowed.`)
+    logger.error(`Unknown communication method ${options.comm}. Only ${JSON.stringify(allowedCommMethods)} are allowed.`)
     return false
   }
 
   if (!isValidJson(options.issuerInvite) && options.issuerInvite !== 'auto') {
-    console.error(`Issuer invitation string "${options.issuerInvite}" is invalid`)
+    logger.error(`Issuer invitation string "${options.issuerInvite}" is invalid`)
     return false
   }
 
