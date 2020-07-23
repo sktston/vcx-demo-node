@@ -107,7 +107,7 @@ async function runAliceMultiple (options) {
 
           // when error occurs, stop & exit all worker process
           case 'exitAll':
-            await exitAllWorkers(false)
+            await exitAllWorkers(true)
             break
 
           default:
@@ -192,7 +192,7 @@ async function runWebHookServer() {
         .catch(async function (err) {
           logger.error(`${err.message}`)
           res.status(500).send({ message: `${err.message}` })
-          await exitAllWorkers(false)
+          await exitAllWorkers(true)
           process.exit(1)
         })
   }
