@@ -5,6 +5,7 @@ const { StateType } = require('../dist/src')
 const sleepPromise = require('sleep-promise')
 const demoCommon = require('./common')
 const logger = require('./logger')
+const morgan = require('morgan')
 const url = require('url')
 const ip = require('ip');
 const isPortReachable = require('is-port-reachable')
@@ -125,6 +126,12 @@ async function runAliceMultiple (options) {
       const message = `Worker ${worker.process.pid} exits ` + (!code ? 'successfully' : `with error ${code}`)
       logger.verbose(message)
     })
+
+    // register Ctrl-C handler to shutdown VCX with deleting wallet
+    process.on('SIGINT', async (signal) => {
+      report.print(report.getReport())
+      process.exit(0)
+    })
   }
   // worker process
   else {
@@ -198,6 +205,7 @@ async function runWebHookServer() {
   }
 
   app.use(bodyParser.json())
+  app.use(morgan('dev'))
 
   app.post('/notifications/:aliceId', asyncHandler(async (req, res) => {
     const { aliceId } = req.params
@@ -289,7 +297,6 @@ async function runAlice (aliceId, options) {
   agentProvision.institution_name = 'faber'
   agentProvision.institution_logo_url = 'http://robohash.org/234'
   agentProvision.genesis_path = `${__dirname}/docker.txn`
-  agentProvision.pool_config = '{"timeout":20}'
 
   logger.info(`Alice[${aliceId}] #9 Initialize libvcx with new configuration`)
 

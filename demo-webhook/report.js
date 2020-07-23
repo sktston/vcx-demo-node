@@ -81,6 +81,10 @@ class Report {
     getReport() {
         // recordArray -> array of '{workerId, phase, startTime, endTime, duration}'
         function getPhaseAnalysis(recordArray, phaseName) {
+            if (recordArray.length <= 0) {
+                return 'no record'
+            }
+
             const startMin = recordArray.map(el => el.startTime).reduce((min, current) => Math.min(min, current))
             const endMax = recordArray.map(el => el.endTime).reduce((max, current) => Math.max(max, current))
             const durationSec = endMax - startMin
@@ -131,6 +135,9 @@ class Report {
     print(report = this._report) {
         for (const phase in report) {
             const phaseAnalysis = report[phase]
+            if (phaseAnalysis.phaseName === undefined) {
+                continue
+            }
             logger.verbose()
             logger.verbose(`------ ${phaseAnalysis.phaseName} Performance ------`)
             logger.verbose(`*** Throughput ***`)
