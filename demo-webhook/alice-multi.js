@@ -363,7 +363,7 @@ async function processMessage(message, aliceId, options) {
     pairwiseDids: message.pwDid,
   }
   const dlMessages = JSON.parse(await downloadMessages(downloadMessagesParam))
-  logger.debug(`Alice[${aliceId}] dlMessages: ${JSON.stringify(dlMessages, null, 2)}`)
+  logger.silly(`Alice[${aliceId}] dlMessages: ${JSON.stringify(dlMessages, null, 2)}`)
 
   for (const message of dlMessages) {
     if (message.msgs.length < 1) {

@@ -1,5 +1,4 @@
 {
   "agencyURL": "http://localhost:8080",
-  "logLevel": "verbose",
   "vcxLogLevel": "error"
 }

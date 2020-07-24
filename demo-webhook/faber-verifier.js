@@ -189,7 +189,7 @@ async function runWebHookServer() {
       pairwiseDids: req.body.pwDid,
     }
     const dlMessages = JSON.parse(await downloadMessages(downloadMessagesParam))
-    logger.debug(`dlMessages: ${JSON.stringify(dlMessages, null, 2)}`)
+    logger.silly(`dlMessages: ${JSON.stringify(dlMessages, null, 2)}`)
 
     for (const message of dlMessages) {
       if (message.msgs.length < 1) {

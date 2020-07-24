@@ -16,7 +16,7 @@ const ip = require('ip')
 const util = require('util')
 const isPortReachable = require('is-port-reachable')
 const { runScript } = require('./script-comon')
-const { shutdownVcx, downloadMessages, updateMessages, getVersion } = require('../dist/src/api/utils')
+const { shutdownVcx, downloadMessages, getVersion } = require('../dist/src/api/utils')
 const { walletAddRecord, walletGetRecord, walletUpdateRecordValue } = require('./wallet')
 
 const express = require('express')
@@ -234,7 +234,7 @@ async function runWebHookServer() {
       pairwiseDids: req.body.pwDid,
     }
     const dlMessages = JSON.parse(await downloadMessages(downloadMessagesParam))
-    logger.debug(`dlMessages: ${JSON.stringify(dlMessages, null, 2)}`)
+    logger.silly(`dlMessages: ${JSON.stringify(dlMessages, null, 2)}`)
 
     for (const message of dlMessages) {
       if (message.msgs.length < 1) {
