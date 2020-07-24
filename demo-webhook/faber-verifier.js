@@ -8,7 +8,8 @@ const demoCommon = require('./common')
 const logger = require('./logger')
 const morgan = require('morgan')
 const url = require('url')
-const ip = require('ip');
+const ip = require('ip')
+const util = require('util')
 const isPortReachable = require('is-port-reachable')
 const { runScript } = require('./script-comon')
 const { shutdownVcx, downloadMessages, updateMessages, getVersion } = require('../dist/src/api/utils')
@@ -61,7 +62,7 @@ let numRequest = 0, numAck = 0, numPresent = 0, numVerify = 0
  |------------|-----------------------------------------------|----------------------------------------------------|
  ***/
 
-async function runFaber (options) {
+async function runFaber(options) {
   runWebHookServer()
 
   await demoCommon.initLibNullPay()
@@ -162,8 +163,8 @@ async function runWebHookServer() {
     return Promise
         .resolve(fn(req, res, next))
         .catch(function (err) {
-          logger.error(`${err.message}`)
-          res.status(500).send({ message: `${err.message}` })
+          logger.error(`${util.inspect(err)}`)
+          res.status(500).send({ message: `${util.inspect(err)}` })
           process.exit(1)
         })
   }

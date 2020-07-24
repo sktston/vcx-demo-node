@@ -10,7 +10,8 @@ const demoCommon = require('./common')
 const logger = require('./logger')
 const morgan = require('morgan')
 const url = require('url')
-const ip = require('ip');
+const ip = require('ip')
+const util = require('util')
 const isPortReachable = require('is-port-reachable')
 const { runScript } = require('./script-comon')
 const { shutdownVcx, downloadMessages, updateMessages, getVersion } = require('../dist/src/api/utils')
@@ -45,7 +46,7 @@ const inviteVerifierUrl = process.env.INVITE_VERIFIER_URL ? process.env.INVITE_V
 
 const report = new Report()
 const maxRetry = 5
-let initVCX = false
+let initVCX = false, verifyCount = 0
 let numResponse = 0, numAck = 0, numCredOffer = 0, numCredential = 0, numPresent = 0
 
 /***
@@ -69,7 +70,7 @@ let numResponse = 0, numAck = 0, numCredOffer = 0, numCredential = 0, numPresent
  |------------|-----------------------------------------------|----------------------------------------------------|
  ***/
 
-async function runAliceMultiple (options) {
+async function runAliceMultiple(options) {
   // master process
   if (cluster.isMaster) {
     let numStart = 0
@@ -145,7 +146,7 @@ async function runAliceMultiple (options) {
           try {
             await runAlice(cluster.worker.id, options)
           } catch (err) {
-            logger.error(`runAlice error: ${err.message}`)
+            logger.error(`runAlice error: ${util.inspect(err)}`)
             process.send({cmd: 'exitAll'})
           }
           break
@@ -158,7 +159,7 @@ async function runAliceMultiple (options) {
           try {
             await processMessage(msg.body, cluster.worker.id, options)
           } catch (err) {
-            logger.error(`processMessage error: ${err.message}`)
+            logger.error(`processMessage error: ${util.inspect(err)}`)
             process.send({cmd: 'exitAll'})
           }
           break
@@ -200,8 +201,8 @@ async function runWebHookServer() {
     return Promise
         .resolve(fn(req, res, next))
         .catch(async function (err) {
-          logger.error(`${err.message}`)
-          res.status(500).send({ message: `${err.message}` })
+          logger.error(`${util.inspect(err)}`)
+          res.status(500).send({ message: `${util.inspect(err)}` })
           await exitAllWorkers(true)
           process.exit(1)
         })
@@ -246,7 +247,7 @@ async function retryRun(retry = 0, func, argument) {
   return result
 }
 
-async function runAlice (aliceId, options) {
+async function runAlice(aliceId, options) {
   report.clearRecords()
 
   if (initVCX === false) {
@@ -290,40 +291,61 @@ async function runAlice (aliceId, options) {
     }
   }
 
-  report.setStartTime(PhaseType.Onboard)
+  if (verifyCount === options.verifyRatio) {
+    report.setStartTime(PhaseType.Onboard)
 
-  logger.info(`Alice[${aliceId}] #8 Provision an agent and wallet, get back configuration details`)
-  provisionConfig.wallet_name = `node_vcx_demo_alice_wallet_${utime}` + `_${aliceId}`
+    logger.info(`Alice[${aliceId}] #8 Provision an agent and wallet, get back configuration details`)
+    provisionConfig.wallet_name = `node_vcx_demo_alice_wallet_${utime}` + `_${aliceId}`
 
-  const agentProvision = await demoCommon.provisionAgentInAgency(provisionConfig)
-  agentProvision.institution_name = 'faber'
-  agentProvision.institution_logo_url = 'http://robohash.org/234'
-  agentProvision.genesis_path = `${__dirname}/docker.txn`
+    const agentProvision = await demoCommon.provisionAgentInAgency(provisionConfig)
+    agentProvision.institution_name = 'faber'
+    agentProvision.institution_logo_url = 'http://robohash.org/234'
+    agentProvision.genesis_path = `${__dirname}/docker.txn`
 
-  logger.info(`Alice[${aliceId}] #9 Initialize libvcx with new configuration`)
+    logger.info(`Alice[${aliceId}] #9 Initialize libvcx with new configuration`)
 
-  // await demoCommon.initVcxWithProvisionedAgentConfig(agentProvision)
-  // avoiding error: Can not open Pool Ledger Pool "pool1" does not exist ==>
-  await retryRun(maxRetry, demoCommon.initVcxWithProvisionedAgentConfig, agentProvision)
+    // await demoCommon.initVcxWithProvisionedAgentConfig(agentProvision)
+    // avoiding error: Can not open Pool Ledger Pool "pool1" does not exist ==>
+    await retryRun(maxRetry, demoCommon.initVcxWithProvisionedAgentConfig, agentProvision)
 
-  report.addRecord(aliceId, PhaseType.Onboard)
+    report.addRecord(aliceId, PhaseType.Onboard)
+  }
+
+  // proceed to issue
+  if (!isValidJson(options.issuerInvite) && options.issuerInvite !== 'auto') {
+    logger.verbose(`Alice[${aliceId}] shutdown VCX with deleting wallet`)
+    await shutdownVcx(true)
+    process.send({cmd: 'aliceDone', report: report.getRecords()})
+    return
+  }
+
+  let inviteUrl, inviteMessgae
+  if (verifyCount === options.verifyRatio) {
+    // Do issue
+    verifyCount = 0
+    inviteUrl = inviteIssuerUrl
+    inviteMessgae = options.issuerInvite
+    report.setStartTime(PhaseType.Issue)
+  } else {
+    // Do verify
+    inviteUrl = inviteVerifierUrl
+    inviteMessgae = options.verifierInvite
+    report.setStartTime(PhaseType.Verify)
+  }
 
   // STEP.2 - receive invitation & create connection A2F
   // accept invitation
   logger.info(`Alice[${aliceId}] #10 Convert to valid json and string and create a connection to faber`)
-  if (options.issuerInvite === 'auto') {
+  if (inviteMessgae === 'auto') {
     try {
-      const response = await axios.get(inviteIssuerUrl)
-      options.issuerInvite = JSON.stringify(response.data)
+      const response = await axios.get(inviteUrl)
+      inviteMessgae = JSON.stringify(response.data)
     } catch (err) {
       throw new Error(`error response from issuer: ${err.message}`)
-      return
     }
   }
 
-  report.setStartTime(PhaseType.Issue)
-
-  const connectionToFaber = await Connection.createWithInvite({id: 'faber', invite: options.issuerInvite})
+  const connectionToFaber = await Connection.createWithInvite({id: 'faber', invite: inviteMessgae})
   await connectionToFaber.connect({data: '{"use_public_did": true}'})
   await connectionToFaber.updateState()
 
@@ -407,9 +429,11 @@ async function processMessage(message, aliceId, options) {
             await proof.release()
             logger.verbose(`Alice[${aliceId}] proof is verified`)
 
-            logger.verbose(`Alice[${aliceId}] shutdown VCX with deleting wallet`)
-            await shutdownVcx(true)
-
+            verifyCount += 1
+            if (verifyCount === options.verifyRatio) {
+              logger.verbose(`Alice[${aliceId}] shutdown VCX with deleting wallet`)
+              await shutdownVcx(true)
+            }
             process.send({cmd: 'aliceDone', report: report.getRecords()})
           } else {
             logger.error(`Alice[${aliceId}] msg: ${JSON.stringify(msg, null, 2)}`)
@@ -491,7 +515,6 @@ async function processMessage(message, aliceId, options) {
                 options.verifierInvite = JSON.stringify(response.data)
               } catch (err) {
                 throw new Error(`error response from verifier: ${err.message}`)
-                return
               }
             }
 
@@ -634,10 +657,11 @@ const optionDefinitions = [
     defaultValue: false
   },
   {
-    name: 'verifyOnly',
-    type: Boolean,
-    description: 'If specified, run verify only after onboard and issue once',
-    defaultValue: false
+    name: 'verifyRatio',
+    alias: 'r',
+    type: Number,
+    description: 'Verify ratio by onboard and issue ->  verify / (onboard & issue)',
+    defaultValue: 1
   }
 ]
 
@@ -671,9 +695,12 @@ function areOptionsValid (options) {
     return false
   }
 
-  if (!isValidJson(options.issuerInvite) && options.issuerInvite !== 'auto') {
-    logger.error(`Issuer invitation string "${options.issuerInvite}" is invalid`)
-    return false
+  // init verifyCount to run 1st issue
+  verifyCount = options.verifyRatio
+
+  // adjust numCycles according to verifyRatio
+  if (options.numCycles < options.verifyRatio) {
+    options.numCycles = options.verifyRatio
   }
 
   return true
