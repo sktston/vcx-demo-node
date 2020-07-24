@@ -1,6 +1,5 @@
 'use strict'
 
-require('dotenv').config({ path: './alice-config.env' })
 const { DisclosedProof } = require('../dist/src/api/disclosed-proof')
 const { Connection } = require('../dist/src/api/connection')
 const { Credential } = require('../dist/src/api/credential')
@@ -8,6 +7,7 @@ const { StateType } = require('../dist/src')
 const sleepPromise = require('sleep-promise')
 const demoCommon = require('./common')
 const logger = require('./logger')
+const config = require('./alice-config.json')
 const morgan = require('morgan')
 const url = require('url')
 const ip = require('ip')
@@ -28,7 +28,7 @@ const app = express()
 const utime = Math.floor(new Date() / 1000)
 
 let provisionConfig = {
-  agency_url: process.env.AGENCY_URL ? process.env.AGENCY_URL : 'http://localhost:8080',
+  agency_url: process.env.AGENCY_URL ? process.env.AGENCY_URL : config.agencyURL,
   agency_did: 'VsKV7grR1BUE29mG2Fm2kX',
   agency_verkey: 'Hezce2UWMZ3wUhVkh2LfKSs8nDzWwzs2Win7EzNN3YaR',
   wallet_name: `node_vcx_demo_alice_wallet_${utime}`,
@@ -37,12 +37,12 @@ let provisionConfig = {
   enterprise_seed: '000000000000000000000000Trustee1'
 }
 
-const logLevel = process.env.VCX_LOG_LEVEL ? process.env.VCX_LOG_LEVEL : 'error'
+const logLevel = process.env.VCX_LOG_LEVEL ? process.env.VCX_LOG_LEVEL : config.vcxLogLevel
 
 const ariesProtocolType = '4.0'
 const webHookUrl = 'http://' + ip.address() + ':7203/notifications/'
-const inviteIssuerUrl = process.env.INVITE_ISSUER_URL ? process.env.INVITE_ISSUER_URL : 'http://localhost:7201/invitations'
-const inviteVerifierUrl = process.env.INVITE_VERIFIER_URL ? process.env.INVITE_VERIFIER_URL : 'http://localhost:7202/invitations'
+const inviteIssuerUrl = process.env.INVITE_ISSUER_URL ? process.env.INVITE_ISSUER_URL : config.inviteIssuerURL
+const inviteVerifierUrl = process.env.INVITE_VERIFIER_URL ? process.env.INVITE_VERIFIER_URL : config.inviteVerifierURL
 
 const report = new Report()
 const maxRetry = 5

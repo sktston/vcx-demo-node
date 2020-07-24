@@ -6,6 +6,7 @@ const { StateType, ProofState } = require('../dist/src')
 const { setActiveTxnAuthorAgreementMeta, getLedgerAuthorAgreement } = require('./../dist/src/api/utils')
 const demoCommon = require('./common')
 const logger = require('./logger')
+const config = require('./faber-config.json')
 const morgan = require('morgan')
 const url = require('url')
 const ip = require('ip')
@@ -24,7 +25,7 @@ const utime = Math.floor(new Date() / 1000)
 const TAA_ACCEPT = process.env.TAA_ACCEPT === 'true' || false
 
 const provisionConfig = {
-  agency_url: process.env.AGENCY_URL ? process.env.AGENCY_URL : 'http://localhost:8080',
+  agency_url: process.env.AGENCY_URL ? process.env.AGENCY_URL : config.agencyURL,
   agency_did: 'VsKV7grR1BUE29mG2Fm2kX',
   agency_verkey: 'Hezce2UWMZ3wUhVkh2LfKSs8nDzWwzs2Win7EzNN3YaR',
   wallet_name: `node_vcx_demo_faber_verifier_wallet_${utime}`,
