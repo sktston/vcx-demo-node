@@ -1,3 +1,5 @@
+'use strict'
+
 const { CredentialDef } = require('../dist/src/api/credential-def')
 const { IssuerCredential } = require('../dist/src/api/issuer-credential')
 const { Connection } = require('../dist/src/api/connection')

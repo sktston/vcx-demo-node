@@ -1,3 +1,6 @@
+'use strict'
+
+require('dotenv').config({ path: './alice-config.env' })
 const { DisclosedProof } = require('../dist/src/api/disclosed-proof')
 const { Connection } = require('../dist/src/api/connection')
 const { Credential } = require('../dist/src/api/credential')
@@ -221,7 +224,6 @@ async function runWebHookServer() {
 
   app.listen(port, () => logger.verbose(`Server listening on port ${port}...`))
 }
-
 
 async function retryRun(retry = 0, func, argument) {
   let result, trial = retry + 1
@@ -611,13 +613,6 @@ const optionDefinitions = [
     defaultValue: 1
   },
   {
-    name: 'aliceInterval',
-    alias: 'l',
-    type: Number,
-    description: 'Interval between each alice starts (seconds)',
-    defaultValue: 0
-  },
-  {
     name: 'numCycles',
     alias: 'c',
     type: Number,
@@ -625,10 +620,23 @@ const optionDefinitions = [
     defaultValue: 1
   },
   {
+    name: 'aliceInterval',
+    alias: 'l',
+    type: Number,
+    description: 'Interval between each alice starts (seconds)',
+    defaultValue: 0
+  },
+  {
     name: 'infinite',
     alias: 'f',
     type: Boolean,
     description: 'If specified, run infinitely',
+    defaultValue: false
+  },
+  {
+    name: 'verifyOnly',
+    type: Boolean,
+    description: 'If specified, run verify only after onboard and issue once',
     defaultValue: false
   }
 ]

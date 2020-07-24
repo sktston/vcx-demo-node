@@ -1,3 +1,5 @@
+'use strict'
+
 const { Proof } = require('../dist/src/api/proof')
 const { Connection } = require('../dist/src/api/connection')
 const { StateType, ProofState } = require('../dist/src')
