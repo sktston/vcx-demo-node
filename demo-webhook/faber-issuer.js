@@ -247,6 +247,7 @@ function runWebHookServer() {
       try {
         await processMessage(message)
       } catch (err) {
+        logger.error(`message: ${JSON.stringify(message, null, 2)}`)
         throw new Error(`processMessage error: ${err.message}`)
       }
     }
