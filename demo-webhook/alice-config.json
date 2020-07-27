@@ -2,5 +2,6 @@
   "agencyURL": "http://localhost:8080",
   "inviteIssuerURL": "http://localhost:7201/invitations",
   "inviteVerifierURL": "http://localhost:7202/invitations",
+  "appLogLevel": "verbose",
   "vcxLogLevel": "error"
 }

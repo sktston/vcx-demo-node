@@ -5,7 +5,7 @@ const { performance } = require('perf_hooks')
 const logger = require('./logger')
 const sleepPromise = require('sleep-promise')
 
-const maxRetry = 8
+const maxRetry = 5
 
 async function walletAddRecord(type, id, value, tags, msg='') {
     const recordParam = {
@@ -15,7 +15,7 @@ async function walletAddRecord(type, id, value, tags, msg='') {
         tags: tags
     }
 
-    //logger.debug(`Wallet.addRecord(${msg}): ${JSON.stringify(recordParam, null, 2)}`)
+    //logger.silly(`Wallet.addRecord(${msg}): ${JSON.stringify(recordParam, null, 2)}`)
     const tStart = performance.now()
     await Wallet.addRecord(recordParam)
     logger.debug(`Wallet.addRecord: ${(performance.now()-tStart).toFixed(1)}ms`)
@@ -59,7 +59,7 @@ async function walletGetRecord(type, id, options, msg='') {
         throw new Error('walletGetRecord error')
     }
 
-    //logger.debug(`walletGetRecord(${msg}): ${JSON.stringify(recordParam, null, 2)}`)
+    //logger.silly(`walletGetRecord(${msg}): ${JSON.stringify(recordParam, null, 2)}`)
     logger.debug(`Wallet.getRecord: ${duration.toFixed(1)}ms`)
     return record
 }
@@ -71,7 +71,7 @@ async function walletUpdateRecordValue(type, id, value, msg='') {
         value: value
     }
 
-    //logger.debug(`Wallet.updateRecordValue(${msg}): ${JSON.stringify(recordParam, null, 2)}`)
+    //logger.silly(`Wallet.updateRecordValue(${msg}): ${JSON.stringify(recordParam, null, 2)}`)
     const tStart = performance.now()
     await Wallet.updateRecordValue(recordParam)
     logger.debug(`Wallet.updateRecordValue: ${(performance.now()-tStart).toFixed(1)}ms`)

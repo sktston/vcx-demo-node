@@ -34,7 +34,8 @@ const provisionConfig = {
   enterprise_seed: '000000000000000000000000Trustee1'
 }
 
-const logLevel = process.env.VCX_LOG_LEVEL ? process.env.VCX_LOG_LEVEL : 'error'
+const appLogLevel = process.env.APP_LOG_LEVEL ? process.env.APP_LOG_LEVEL : config.appLogLevel
+const vcxLogLevel = process.env.VCX_LOG_LEVEL ? process.env.VCX_LOG_LEVEL : config.vcxLogLevel
 
 const ariesProtocolType = '4.0'
 const webHookUrl = 'http://' + ip.address() + ':7202/notifications/'
@@ -64,12 +65,14 @@ let numRequest = 0, numAck = 0, numPresent = 0, numVerify = 0
  ***/
 
 async function runFaber(options) {
+  logger.level = appLogLevel
+
   runWebHookServer()
 
   await demoCommon.initLibNullPay()
 
   logger.info('#0 Initialize rust API from NodeJS')
-  await demoCommon.initRustApiAndLogger(logLevel)
+  await demoCommon.initRustApiAndLogger(vcxLogLevel)
 
   logger.info('#0-1 Check LibVCX version')
   const libVcxVersion = await getVersion()
@@ -158,7 +161,7 @@ async function runFaber(options) {
   serverReady = true
 }
 
-async function runWebHookServer() {
+function runWebHookServer() {
   const port = url.parse(webHookUrl).port
   const asyncHandler = fn => (req, res, next) => {
     return Promise

@@ -8,7 +8,7 @@ const prettyFormatter = format.combine(
 )
 
 const logger = createLogger({
-  level: process.env.LOG_LEVEL ? process.env.LOG_LEVEL : 'verbose',
+  level: process.env.APP_LOG_LEVEL ? process.env.APP_LOG_LEVEL : 'verbose',
   format: format.combine(
     label({ label: '' }),
     format.colorize({ all: true }),

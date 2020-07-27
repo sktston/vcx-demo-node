@@ -4,6 +4,7 @@ const { DisclosedProof } = require('../dist/src/api/disclosed-proof')
 const { Connection } = require('../dist/src/api/connection')
 const { Credential } = require('../dist/src/api/credential')
 const { StateType } = require('../dist/src')
+const { performance } = require('perf_hooks')
 const sleepPromise = require('sleep-promise')
 const demoCommon = require('./common')
 const logger = require('./logger')
@@ -37,7 +38,8 @@ let provisionConfig = {
   enterprise_seed: '000000000000000000000000Trustee1'
 }
 
-const logLevel = process.env.VCX_LOG_LEVEL ? process.env.VCX_LOG_LEVEL : config.vcxLogLevel
+const appLogLevel = process.env.APP_LOG_LEVEL ? process.env.APP_LOG_LEVEL : config.appLogLevel
+const vcxLogLevel = process.env.VCX_LOG_LEVEL ? process.env.VCX_LOG_LEVEL : config.vcxLogLevel
 
 const ariesProtocolType = '4.0'
 const webHookUrl = 'http://' + ip.address() + ':7203/notifications/'
@@ -71,6 +73,8 @@ let numResponse = 0, numAck = 0, numCredOffer = 0, numCredential = 0, numPresent
  ***/
 
 async function runAliceMultiple(options) {
+  logger.level = appLogLevel
+
   // master process
   if (cluster.isMaster) {
     let numStart = 0
@@ -195,7 +199,7 @@ async function exitAllWorkers(print) {
   process.exit(0)
 }
 
-async function runWebHookServer() {
+function runWebHookServer() {
   const port = url.parse(webHookUrl).port
   const asyncHandler = fn => (req, res, next) => {
     return Promise
@@ -255,7 +259,7 @@ async function runAlice(aliceId, options) {
     await demoCommon.initLibNullPay()
 
     logger.info(`Alice[${aliceId}]  #0 Initialize rust API from NodeJS`)
-    await demoCommon.initRustApiAndLogger(logLevel)
+    await demoCommon.initRustApiAndLogger(vcxLogLevel)
 
     logger.info('#0-1 Check LibVCX version')
     const libVcxVersion = await getVersion()
@@ -639,11 +643,11 @@ const optionDefinitions = [
     name: 'numCycles',
     alias: 'c',
     type: Number,
-    description: 'Number of Alice\'s running cycles (1 cycle = onboard/issue/verify)',
+    description: 'Total number of Alice\'s running cycles (1 cycle = onboard/issue/verify)',
     defaultValue: 1
   },
   {
-    name: 'aliceInterval',
+    name: 'startInterval',
     alias: 'l',
     type: Number,
     description: 'Interval between each alice starts (seconds)',
