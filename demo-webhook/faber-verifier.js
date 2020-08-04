@@ -13,7 +13,7 @@ const ip = require('ip')
 const util = require('util')
 const isPortReachable = require('is-port-reachable')
 const { runScript } = require('./script-comon')
-const { shutdownVcx, downloadMessages, updateMessages, getVersion } = require('../dist/src/api/utils')
+const { shutdownVcx, downloadMessages, getVersion } = require('../dist/src/api/utils')
 const { walletAddRecord, walletGetRecord, walletUpdateRecordValue } = require('./wallet')
 
 const express = require('express')
@@ -217,7 +217,7 @@ function runWebHookServer() {
     res.status(200).json(inviteDetails)
   }))
 
-  app.use(asyncHandler(async (req, res, next) => {
+  app.use(asyncHandler(async (req) => {
     throw new Error(`Your request: '${req.originalUrl}' didn't reach any handler.`)
   }))
 
@@ -417,3 +417,6 @@ function areOptionsValid (options) {
 }
 
 runScript(optionDefinitions, usage, areOptionsValid, runFaber)
+  .catch(function(err) {
+    logger.error(`${util.inspect(err)}`)
+  })

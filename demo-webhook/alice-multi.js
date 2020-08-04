@@ -24,7 +24,6 @@ const cluster = require('cluster')
 const os = require('os')
 const axios = require('axios')
 
-const app = express()
 const utime = Math.floor(new Date() / 1000)
 
 let provisionConfig = {
@@ -129,13 +128,13 @@ async function runAliceMultiple(options) {
       await sleepPromise(options.aliceInterval * 1000)
     }
 
-    cluster.on('exit', (worker, code, signal) => {
+    cluster.on('exit', (worker, code) => {
       const message = `Worker ${worker.process.pid} exits ` + (!code ? 'successfully' : `with error ${code}`)
       logger.verbose(message)
     })
 
     // register Ctrl-C handler to shutdown VCX with deleting wallet
-    process.on('SIGINT', async (signal) => {
+    process.on('SIGINT', async () => {
       report.print(report.getReport())
       process.exit(0)
     })
@@ -180,10 +179,13 @@ async function runAliceMultiple(options) {
       process.exit(0)
     })
   }
+
+  return 'Waiting web hook event from agent...'
 }
 
 async function exitAllWorkers(print) {
-  for (const id in cluster.workers) {
+  const ids = Object.keys(cluster.workers)
+  for (const id of ids) {
     cluster.workers[id].send({cmd: 'aliceExit'})
   }
 
@@ -199,6 +201,7 @@ async function exitAllWorkers(print) {
 }
 
 function runWebHookServer() {
+  const app = express()
   const port = url.parse(webHookUrl).port
   const asyncHandler = fn => (req, res, next) => {
     return Promise
@@ -222,7 +225,7 @@ function runWebHookServer() {
     res.status(200).send()
   }))
 
-  app.use(asyncHandler(async (req, res, next) => {
+  app.use(asyncHandler(async (req) => {
     throw new Error(`Your request: '${req.originalUrl}' didn't reach any handler.`)
   }))
 
@@ -691,7 +694,7 @@ function isValidJson(str) {
   return true
 }
 
-function areOptionsValid (options) {
+function areOptionsValid(options) {
   const allowedCommMethods = ['aries', 'legacy']
   if (!(allowedCommMethods.includes(options.comm))) {
     logger.error(`Unknown communication method ${options.comm}. Only ${JSON.stringify(allowedCommMethods)} are allowed.`)
@@ -710,3 +713,6 @@ function areOptionsValid (options) {
 }
 
 runScript(optionDefinitions, usage, areOptionsValid, runAliceMultiple)
+  .catch(function(err) {
+    logger.error(`${util.inspect(err)}`)
+  })

@@ -22,7 +22,6 @@ const { walletAddRecord, walletGetRecord, walletUpdateRecordValue } = require('.
 const express = require('express')
 const bodyParser = require('body-parser')
 
-const app = express()
 const utime = Math.floor(new Date() / 1000)
 const TAA_ACCEPT = process.env.TAA_ACCEPT === 'true' || false
 
@@ -207,6 +206,7 @@ async function runFaber(options) {
 }
 
 function runWebHookServer() {
+  const app = express()
   const port = url.parse(webHookUrl).port
   const asyncHandler = fn => (req, res, next) => {
     return Promise
@@ -262,7 +262,7 @@ function runWebHookServer() {
     res.status(200).json(inviteDetails)
   }))
 
-  app.use(asyncHandler(async (req, res, next) => {
+  app.use(asyncHandler(async (req) => {
     throw new Error(`Your request: '${req.originalUrl}' didn't reach any handler.`)
   }))
 
@@ -437,3 +437,6 @@ function areOptionsValid (options) {
 }
 
 runScript(optionDefinitions, usage, areOptionsValid, runFaber)
+  .catch(function(err) {
+    logger.error(`${util.inspect(err)}`)
+  })
