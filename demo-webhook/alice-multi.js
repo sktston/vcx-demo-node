@@ -677,7 +677,7 @@ const usage = [
     optionList: optionDefinitions
   },
   {
-    content: 'Project home: {underline https://github.com/Patrik-Stas/indy-wallet-watch}'
+    content: 'Project home: {underline https://github.com/sktston/vcx-demo-node}'
   }
 ]
 

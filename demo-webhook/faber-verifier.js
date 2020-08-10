@@ -44,26 +44,28 @@ let serverReady = false
 let numRequest = 0, numAck = 0, numPresent = 0, numVerify = 0
 
 /***
- "@" symbol specifies  web hook received step -> total 9-step which receives corresponding agency message
+ "@" symbol specifies  web hook received step -> total 10-step which receives corresponding agency message
  |------------|-----------------------------------------------|----------------------------------------------------|
  |   Phase    |                     FABER                     |                       ALICE                        |
  |------------|-----------------------------------------------|----------------------------------------------------|
- | Connection | STEP.1: create connection F & send invitation | STEP.2: receive invitation & create connection A2F |
+ | Connection | STEP.1: create connection & send invitation   | STEP.2:  receive invitation & request connection   |
  |            |-----------------------------------------------|----------------------------------------------------|
- |            | @STEP.3: update connection from F to F2A      | @STEP.4 - connection created                       |
+ |            | @STEP.3: accept connection request            | @STEP.4 - connection created                       |
  |            |-----------------------------------------------|----------------------------------------------------|
- |            | @STEP.5: receive connection created ACK       |                                                    |
+ |            | @STEP.5: receive connection ACK               |                                                    |
  |------------|-----------------------------------------------|----------------------------------------------------|
- | Credential | STEP.6: send credential offer                 | @STEP.7: accept credential offer&request credential|
+ | Credential | STEP.6: send credential offer                 | @STEP.7: check credential offer&request credential |
  |            |-----------------------------------------------|----------------------------------------------------|
- |            | @STEP.8: receive request & send credential    | @STEP.9: accept credential                         |
+ |            | @STEP.8: send credential                      | @STEP.9:  accept credential                        |
+ |            |-----------------------------------------------|----------------------------------------------------|
+ |            | @STEP.10: receive credential ACK              |                                                    |
  |------------|-----------------------------------------------|----------------------------------------------------|
- | Proof      | STEP.10: request proof                        | @STEP.11: receive request & send proof             |
+ | Proof      | STEP.11: request proof                        | @STEP.12: send proof                               |
  |            |-----------------------------------------------|----------------------------------------------------|
- |            | @STEP.12: receive & verify proof              | @STEP.13: receive proof ACK                        |
+ |            | @STEP.13: receive & verify proof              | @STEP.14: receive proof ACK                        |
  |------------|-----------------------------------------------|----------------------------------------------------|
  ***/
-
+s
 async function runFaber(options) {
   logger.level = appLogLevel
 
@@ -403,7 +405,7 @@ const usage = [
     optionList: optionDefinitions
   },
   {
-    content: 'Project home: {underline https://github.com/Patrik-Stas/indy-wallet-watch}'
+    content: 'Project home: {underline https://github.com/sktston/vcx-demo-node}'
   }
 ]
 
