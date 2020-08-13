@@ -32,9 +32,12 @@ async function provisionAgentInAgency (config) {
 }
 
 async function initVcxWithProvisionedAgentConfig (config) {
+ /*
+  // remove by dr.jhyun
   config.institution_name = 'faber'
   config.institution_logo_url = 'http://robohash.org/234'
-  config.genesis_path = `${__dirname}/docker.txn`
+  config.genesis_path = `${__dirname}/genesis.txn`
+ */
   await initVcxWithConfig(JSON.stringify(config))
 }
 
@@ -44,9 +47,31 @@ function getRandomInt (min, max) {
   return Math.floor(Math.random() * (max - min)) + min
 }
 
+async function retryRun(retry = 0, func, argument) {
+  let result, trial = retry + 1
+
+  do {
+    try {
+      result = await func(argument)
+      trial = -1
+    } catch (err) {
+      log.warn(`${func.name}: ${err.message}: ${trial}`)
+      await sleepPromise(1000 * Math.pow(2, retry+1-trial))
+      trial -= 1
+    }
+  } while(trial > 0)
+
+  if (trial === 0) {
+    throw new Error(`${func.name} exceeds retry number`)
+  }
+
+  return result
+}
+
 module.exports.loadPostgresPlugin = loadPostgresPlugin
 module.exports.initLibNullPay = initLibNullPay
 module.exports.initRustApiAndLogger = initRustApiAndLogger
 module.exports.provisionAgentInAgency = provisionAgentInAgency
 module.exports.initVcxWithProvisionedAgentConfig = initVcxWithProvisionedAgentConfig
 module.exports.getRandomInt = getRandomInt
+module.exports.retryRun = retryRun

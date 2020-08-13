@@ -1,3 +1,9 @@
+/**************************************************
+ * Author  : Jihyuck Yun                          *
+ *           dr.jhyun@gmail.com                   *
+ * since August 10, 2020                          *
+ **************************************************/
+
 'use strict'
 
 const { CredentialDef } = require('../dist/src/api/credential-def')
@@ -5,43 +11,27 @@ const { IssuerCredential } = require('../dist/src/api/issuer-credential')
 const { Connection } = require('../dist/src/api/connection')
 const { Schema } = require('./../dist/src/api/schema')
 const { StateType } = require('../dist/src')
-const { setActiveTxnAuthorAgreementMeta, getLedgerAuthorAgreement } = require('./../dist/src/api/utils')
-const demoCommon = require('./common')
+const common = require('./common')
 const { getRandomInt } = require('./common')
-const logger = require('./logger')
+const log = require('./logger')
 const config = require('./faber-config.json')
-const morgan = require('morgan')
-const url = require('url')
-const ip = require('ip')
-const util = require('util')
-const isPortReachable = require('is-port-reachable')
 const { runScript } = require('./script-comon')
-const { shutdownVcx, downloadMessages, getVersion } = require('../dist/src/api/utils')
+const { shutdownVcx, downloadMessages, getVersion, endorseTransaction } = require('../dist/src/api/utils')
 const { walletAddRecord, walletGetRecord, walletUpdateRecordValue } = require('./wallet')
 
 const express = require('express')
 const bodyParser = require('body-parser')
+const morgan = require('morgan')
+const url = require('url')
+const ip = require('ip')
+const util = require('util')
+const os = require('os')
+const axios = require('axios')
+const FormData = require('form-data')
+const fs = require('fs')
 
-const utime = Math.floor(new Date() / 1000)
-const TAA_ACCEPT = process.env.TAA_ACCEPT === 'true' || false
-
-const provisionConfig = {
-  agency_url: process.env.AGENCY_URL ? process.env.AGENCY_URL : config.agencyURL,
-  agency_did: 'VsKV7grR1BUE29mG2Fm2kX',
-  agency_verkey: 'Hezce2UWMZ3wUhVkh2LfKSs8nDzWwzs2Win7EzNN3YaR',
-  wallet_name: `node_vcx_demo_faber_issuer_wallet_${utime}`,
-  wallet_key: '123',
-  payment_method: 'null',
-  enterprise_seed: '000000000000000000000000Trustee1'
-}
-
-const appLogLevel = process.env.APP_LOG_LEVEL ? process.env.APP_LOG_LEVEL : config.appLogLevel
-const vcxLogLevel = process.env.VCX_LOG_LEVEL ? process.env.VCX_LOG_LEVEL : config.vcxLogLevel
-
-const ariesProtocolType = '4.0'
 const webHookUrl = 'http://' + ip.address() + ':7201/notifications/'
-const autoSendOffer = true
-let serverReady = false
+const tailsFileRoot = os.homedir() + '/.indy_client/tails'
 let numRequest = 0, numAck = 0, numReqCred = 0, numIssues = 0
 
 /***
@@ -67,72 +57,92 @@ let numRequest = 0, numAck = 0, numReqCred = 0, numIssues = 0
  |------------|-----------------------------------------------|----------------------------------------------------|
  ***/
 
-async function runFaber(options) {
-  logger.level = appLogLevel
+async function startUp(options) {
+  log.level = process.env.APP_LOG_LEVEL ? process.env.APP_LOG_LEVEL : config.appLogLevel
 
+  await initialize(options)
   runWebHookServer()
+}
 
-  await demoCommon.initLibNullPay()
+async function initialize(options) {
+  log.info('#0 Initialize')
 
-  logger.info('#0 Initialize rust API from NodeJS')
-  await demoCommon.initRustApiAndLogger(vcxLogLevel)
+  await common.initLibNullPay()
 
-  logger.info('#0-1 Check LibVCX version')
+  const vcxLogLevel = process.env.VCX_LOG_LEVEL ? process.env.VCX_LOG_LEVEL : config.vcxLogLevel
+  await common.initRustApiAndLogger(vcxLogLevel)
+
   const libVcxVersion = await getVersion()
-  logger.info(`LibVCX Version: ${libVcxVersion}`)
+  log.info(`LibVCX Version: ${libVcxVersion}`)
   if (libVcxVersion.substr(0, 3) < 0.8) {
-    logger.error(`LibVCX version must be higher than 0.8`)
+    log.error(`LibVCX version must be higher than 0.8`)
     process.exit(1)
   }
 
-  if (options.comm === 'aries') {
-    //provisionConfig.protocol_type = '2.0'
-    provisionConfig.protocol_type = ariesProtocolType
-    provisionConfig.communication_method = 'aries'
-    logger.info('Running with Aries VCX Enabled! Make sure VCX agency is configured to use protocol_type 2.0')
+  const utime = Math.floor(new Date() / 1000)
+  const provisionConfig = {
+    agency_url: process.env.AGENCY_URL ? process.env.AGENCY_URL : config.agencyURL,
+    agency_did: 'VsKV7grR1BUE29mG2Fm2kX',
+    agency_verkey: 'Hezce2UWMZ3wUhVkh2LfKSs8nDzWwzs2Win7EzNN3YaR',
+    wallet_name: `node_vcx_demo_faber_issuer_wallet_${utime}`,
+    wallet_key: '123',
+    payment_method: 'null',
+    // SEED of faber's DID already registered in the ledger
+    // It is recommended to use VON Network and you must register following seed
+    enterprise_seed: '00000000000000000000000Endorser1'
   }
 
-  if (options.postgresql) {
-    await demoCommon.loadPostgresPlugin(provisionConfig)
+  // Communication method. aries.
+  if (options.comm === 'aries') {
+    provisionConfig.protocol_type = '4.0'
+    provisionConfig.communication_method = 'aries'
+    log.info('Running with Aries VCX Enabled! Make sure VCX agency is configured to use protocol_type 4.0')
+  }
+
+  if (config.postgresql) {
+    await common.loadPostgresPlugin(provisionConfig)
     provisionConfig.wallet_type = 'postgres_storage'
     provisionConfig.storage_config = '{"url":"localhost:5432"}'
     provisionConfig.storage_credentials = '{"account":"postgres","password":"mysecretpassword","admin_account":"postgres","admin_password":"mysecretpassword"}'
-    logger.info(`Running with PostreSQL wallet enabled! Config = ${provisionConfig.storage_config}`)
+    log.info(`Running with PostreSQL wallet enabled! Config = ${provisionConfig.storage_config}`)
   } else {
-    logger.info('Running with builtin wallet.')
+    log.info('Running with builtin wallet.')
   }
 
-  if (await isPortReachable(url.parse(webHookUrl).port, {host: url.parse(webHookUrl).hostname})) { // eslint-disable-line
-    provisionConfig.webhook_url = webHookUrl
-    logger.info(`Running with webhook notifications enabled! Webhook url = ${webHookUrl}`)
-  } else {
-    logger.info('Webhook url will not be used')
-  }
+  // add webhook url to config
+  provisionConfig.webhook_url = webHookUrl
+  log.info(`Running with webhook notifications enabled! Webhook url = ${webHookUrl}`)
 
-  logger.info(`#1 Config used to provision agent in agency: ${JSON.stringify(provisionConfig, null, 2)}`)
-  const agentProvision = await demoCommon.provisionAgentInAgency(provisionConfig)
-  agentProvision.institution_name = 'faber'
-  agentProvision.institution_logo_url = 'http://robohash.org/234'
-  agentProvision.genesis_path = `${__dirname}/docker.txn`
+  log.info(`#1 Config used to provision agent in agency: ${JSON.stringify(provisionConfig, null, 2)}`)
+  const vcxConfig = await common.provisionAgentInAgency(provisionConfig)
+  vcxConfig.institution_name = 'faber'
+  vcxConfig.institution_logo_url = 'http://robohash.org/234'
+  vcxConfig.protocol_version = '2'
+  vcxConfig.genesis_path = `${__dirname}/genesis.txn`
 
-  logger.info(`#2 Using following agent provision to initialize VCX ${JSON.stringify(agentProvision, null, 2)}`)
-  await demoCommon.initVcxWithProvisionedAgentConfig(agentProvision)
+  log.info(`#2 Using following agent provision to initialize VCX ${JSON.stringify(vcxConfig, null, 2)}`)
+  await common.initVcxWithProvisionedAgentConfig(vcxConfig)
 
-  logger.verbose('#2-1 Register Ctrl-C handler to shutdown VCX with deleting wallet')
+  log.silly(`walletAddRecord (vcxConfig, defaultVcxConfig, ${JSON.stringify(vcxConfig, null, 2)})`)
+  await walletAddRecord('vcxConfig', 'defaultVcxConfig', JSON.stringify(vcxConfig), {})
+
+  log.verbose('#2-1 Register Ctrl-C handler to shutdown VCX with deleting wallet')
   process.on('SIGINT', async (signal) => {
-    logger.verbose(`${signal} process [${process.pid}] -> shutdown VCX with deleting wallet`)
+    log.verbose(`${signal} process [${process.pid}] -> shutdown VCX with deleting wallet`)
     await shutdownVcx(true)
     process.exit(0)
   })
 
-  if (TAA_ACCEPT) {
-    logger.info('#2.1 Accept transaction author agreement')
-    const taa = await getLedgerAuthorAgreement()
-    const taa_json = JSON.parse(taa)
-    await setActiveTxnAuthorAgreementMeta(taa_json.text, taa_json.version, null, Object.keys(taa_json.aml)[0], utime)
-  }
+  await createSchema()
+  await createCredentialDefinition()
+  await createInviation()
 
-  const version = `${getRandomInt(1, 101)}.${getRandomInt(1, 101)}.${getRandomInt(1, 101)}`
+  log.info('Setting of schema and credential definition is done. Run alice now.')
+}
+
+async function createSchema() {
+  // define schema with actually needed
+  const version = `${getRandomInt(1, 99)}.${getRandomInt(1, 99)}.${getRandomInt(1, 99)}`
   const schemaData = {
     data: {
       attrNames: ['name', 'last_name', 'sex', 'date', 'degree', 'age'],
@@ -142,139 +152,140 @@ async function runFaber(options) {
     paymentHandle: 0,
     sourceId: `your-identifier-fabervcx-${version}`
   }
-  logger.info(`#3 Create a new schema on the ledger: ${JSON.stringify(schemaData, null, 2)}`)
+  log.info(`#3 Create a new schema on the ledger: ${JSON.stringify(schemaData, null, 2)}`)
 
   const schema = await Schema.create(schemaData)
   const schemaId = await schema.getSchemaId()
-  logger.info(`Created schema with id ${schemaId}`)
+  log.info(`Created schema with id ${schemaId}`)
 
-  logger.verbose('#3-1 Store schema to Faber\'s local wallet')
-  const  serialSchema = JSON.stringify(await schema.serialize())
-  await walletAddRecord('schema', 'defaultSchema', serialSchema, {})
+  const serialSchema = await schema.serialize()
+
+  log.silly(`walletAddRecord (schema, defaultSchema, ${JSON.stringify(serialSchema, null, 2)})`)
+  await walletAddRecord('schema', 'defaultSchema', JSON.stringify(serialSchema), {})
+
   await schema.release()
+}
 
-  logger.info('#4 Create a new credential definition on the ledger')
-  const tag = `tag.${getRandomInt(1, 101)}.${getRandomInt(1, 101)}.${getRandomInt(1, 101)}`
-  const data = {
-    name: `DemoCredential`,
-    paymentHandle: 0,
-    revocation: false,
+async function createCredentialDefinition() {
+  const schemaRecord = await walletGetRecord('schema', 'defaultSchema', {})
+  const schema = JSON.parse(JSON.parse(schemaRecord).value)
+  const schemaId = schema.data.schema_id
+  const version = schema.data.version // not need same with schema version
+
+  const vcxConfigRecord = await walletGetRecord('vcxConfig', 'defaultVcxConfig', {})
+  const vcxConfig = JSON.parse(JSON.parse(vcxConfigRecord).value)
+  const faberDid = vcxConfig.institution_did
+
+  // define credential definition with actually needed
+  const credDefData = {
+    name: `CredentialDefName`,
+    endorser: faberDid,
     revocationDetails: {
-      tailsFile: 'tails.txt'
+      supportRevocation: true,
+      // tails file is created here when prepareForEndorser
+      tailsFile: tailsFileRoot,
+      maxCreds: config.maxCrdes
     },
     schemaId: schemaId,
     sourceId: `CredentialDefSourceId`,
     // add by dr.jhyun
-    tag
+    tag: `tag.${version}`
   }
-  const credDef = await CredentialDef.create(data)
-  const credDefId = await credDef.getCredDefId()
+
+  log.info(`#4-1 Create a new credential definition object: \n${JSON.stringify(credDefData, null, 2)}`)
+  const credDef = await CredentialDef.prepareForEndorser(credDefData)
+
   const credDefHandle = credDef.handle
-  logger.info(`Created credential with id ${credDefId} and handle ${credDefHandle}`)
+  const credDefTrx = credDef.credentialDefTransaction
+  let   revRegDefTrx = credDef.revocRegDefTransaction
+  const revRegId = JSON.parse(revRegDefTrx).operation.id
+  const tailsFileHash = JSON.parse(revRegDefTrx).operation.value.tailsHash
+  const revRegEntryTrx = credDef.revocRegEntryTransaction
 
-  logger.verbose('#4-1 Store credential definition to Faber\'s local wallet')
-  const  serialCredDef = JSON.stringify(await credDef.serialize())
-  await walletAddRecord('credentialDef', 'defaultCredentialDef', serialCredDef, {})
-  await credDef.release()
+  log.info('#4-2 Publish credential definition and revocation registry on the ledger')
+  await endorseTransaction(credDefTrx)
+  // we replace tails file location from local to tails server url
+  revRegDefTrx = JSON.parse(revRegDefTrx)
+  revRegDefTrx.operation.value.tailsLocation = config.tailsServerURL + '/' + revRegId
+  revRegDefTrx = JSON.stringify(revRegDefTrx)
+  await endorseTransaction(revRegDefTrx)
+  await endorseTransaction(revRegEntryTrx)
 
-  //STEP.1 - create connection F & send invitation
-  logger.info('#5 Create a connection to alice and print out the invite details')
-  const connectionToAlice = await Connection.create({id: 'alice'})
-  await connectionToAlice.connect('{}')
-  await connectionToAlice.updateState()
+  await credDef.updateState()
+  const credentialDefState = await credDef.getState()
 
-  const details = await connectionToAlice.inviteDetails(false)
-  logger.info('\n\n**invite details**')
-  logger.info("**You'll ge queried to paste this data to alice side of the demo. This is invitation to connect.**")
-  logger.info("**It's assumed this is obtained by Alice from Faber by some existing secure channel.**")
-  logger.info('**Could be on website via HTTPS, QR code scanned at Faber institution, ...**')
-  logger.info('\n******************\n\n')
-  logger.info(details)
-  logger.info('\n\n******************\n\n')
-
-  logger.verbose('#5-1 Store invite details to Faber\'s local wallet')
-  await walletAddRecord('invite', 'defaultInvite', details, {})
-
-  // store created connectionToAlice connection for using repeated invitation
-  logger.verbose('#5-2 Store invite connection to Faber\'s local wallet')
-  const serialConnectionToAlice = JSON.stringify(await connectionToAlice.serialize())
-  const connectionToAlicePwDid = await connectionToAlice.getPwDid()
-
-  await walletAddRecord('connection', connectionToAlicePwDid, serialConnectionToAlice, {})
-  await connectionToAlice.release()
-
-  logger.verbose('#5-3 Web hook server can response here')
-  serverReady = true
-}
-
-function runWebHookServer() {
-  const app = express()
-  const port = url.parse(webHookUrl).port
-  const asyncHandler = fn => (req, res, next) => {
-    return Promise
-        .resolve(fn(req, res, next))
-        .catch(function (err) {
-          logger.error(`${util.inspect(err)}`)
-          res.status(500).send({ message: `${util.inspect(err)}` })
-          process.exit(1)
-        })
+  if (credentialDefState === StateType.Initialized) {
+    log.info('Published successfully')
+  } else {
+    throw new Error(`Publishing is failed: ${credentialDefState}`)
   }
 
-  app.use(bodyParser.json())
-  app.use(morgan('dev'))
+  log.info(`#4-3 Upload tails file to tails filer server: ${config.tailsServerURL}/${revRegId}`)
 
-  app.use((req, res, next) => {
-    if (!serverReady) {
-      logger.error('Server is not ready')
-      res.status(500).send({ message: 'Server is not ready' })
-    } else {
-      next()
+  const formData = new FormData()
+  formData.append('genesis', fs.createReadStream(`${__dirname}/genesis.txn`))
+  formData.append('tails', fs.createReadStream(`${tailsFileRoot}/${tailsFileHash}`))
+
+  const httpConfig = {
+    headers: {
+      ...formData.getHeaders()
     }
-  })
+  }
+  const response = await axios.put(`${config.tailsServerURL}/${revRegId}`, formData, httpConfig)
 
-  app.post('/notifications', asyncHandler(async (req, res) => {
-    const downloadMessagesParam = {
-      //status: req.body.msgStatusCode,
-      uids: req.body.msgUid,
-      pairwiseDids: req.body.pwDid,
-    }
-    const dlMessages = JSON.parse(await downloadMessages(downloadMessagesParam))
-    logger.silly(`dlMessages: ${JSON.stringify(dlMessages, null, 2)}`)
+  if (response.data === tailsFileHash) {
+    log.info(`Uploaded successfully - tails file: ${tailsFileRoot}/${tailsFileHash}`)
+  } else {
+    throw new Error(`Uploading is failed - tails file: ${tailsFileRoot}/${tailsFileHash}`)
+  }
 
-    for (const message of dlMessages) {
-      if (message.msgs.length < 1) {
-        throw new Error(`empty message: ${JSON.stringify(message, null, 2)}`)
-      }
+  const credDefId = await credDef.getCredDefId()
+  log.info(`Created credential with id ${credDefId} and handle ${credDefHandle}`)
 
-      try {
-        await processMessage(message)
-      } catch (err) {
-        logger.error(`message: ${JSON.stringify(message, null, 2)}`)
-        throw new Error(`processMessage error: ${err.message}`)
-      }
-    }
+  const serialCredDef = await credDef.serialize()
 
-    res.status(200).send()
-  }))
+  log.silly(`walletAddRecord (credentialDef, defaultCredentialDef, ${JSON.stringify(serialCredDef, null, 2)})`)
+  await walletAddRecord('credentialDef', 'defaultCredentialDef', JSON.stringify(serialCredDef), {})
 
-  app.get('/invitations', asyncHandler(async (req, res) => {
-    const record = await walletGetRecord('invite', 'defaultInvite', {})
-    const inviteDetails = JSON.parse(JSON.parse(record).value)
-    logger.debug(`inviteDetails: ${JSON.stringify(inviteDetails)}`)
-    res.status(200).json(inviteDetails)
-  }))
-
-  app.use(asyncHandler(async (req) => {
-    throw new Error(`Your request: '${req.originalUrl}' didn't reach any handler.`)
-  }))
-
-  app.listen(port, () => logger.verbose(`Server listening on port ${port}...`))
+  await credDef.release()
 }
 
-async function processMessage(message) {
+async function createInviation() {
+  //STEP.1 - create invitation(connection) & send invitation
+  log.info('#5 Create a connection to alice and return the invite details')
+  const connection = await Connection.create({id: 'alice'})
+  await connection.connect('{}')
+  await connection.updateState()
+
+  const details = await connection.inviteDetails(false)
+  log.info('**invite details**')
+  log.info(details)
+
+  log.silly(`walletAddRecord (invitation, defaultInvitation, ${JSON.stringify(JSON.parse(details), null, 2)})`)
+  await walletAddRecord('invitation', 'defaultInvitation', details, {})
+
+  const serialConnection = await connection.serialize()
+  const pwDid = await connection.getPwDid()
+
+  log.silly(`walletAddRecord (connection, ${pwDid}, ${JSON.stringify(serialConnection, null, 2)})`)
+  await walletAddRecord('connection', pwDid, JSON.stringify(serialConnection), {})
+
+  await connection.release()
+}
+
+async function getInvitation() {
+  log.info('getInvitation >>>')
+  const invitationRecord = await walletGetRecord('invitation', 'defaultInvitation', {})
+  const invitation = JSON.parse(invitationRecord).value
+  log.info(`getInvitation <<< invitation:${invitation}`)
+
+  return JSON.parse(invitation)
+}
+
+async function handleMessage(message) {
   const pwDid = message.pairwiseDID
   const record = await walletGetRecord('connection', pwDid, {})
-  const connectionToAlice = await Connection.deserialize(JSON.parse(JSON.parse(record).value))
+  const connection = await Connection.deserialize(JSON.parse(JSON.parse(record).value))
 
   for (const msg of message.msgs) {
     // 'decryptedPayload' consists of 'payloadType' and 'payloadMsg'
@@ -284,118 +295,217 @@ async function processMessage(message) {
     const payloadMsg = JSON.parse(payload['@msg'])    // JSON Object
     const payloadMsgType = payloadMsg['@type']        // String
 
-    //logger.debug(`payloadMsg: ${JSON.stringify(payloadMsg, null, 2)}`)
+    //log.debug(`payloadMsg: ${JSON.stringify(payloadMsg, null, 2)}`)
 
     if (payloadTypeName !== 'aries') {
-      logger.error(`unknown payload type name: ${payloadTypeName}`)
+      log.error(`msg: ${JSON.stringify(msg, null, 2)}`)
       throw new Error(`unknown payload type name: ${payloadTypeName}`)
     }
 
-    // STEP.3 - update connection from F to F2A
-    // connection request - At Inviter: after receiving invitation from Invitee
+    // STEP.3 - accept connection request
     if (payloadMsgType === 'did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/connections/1.0/request') {
-      logger.verbose(`aries: spec/connections/1.0/request [${++numRequest}]`)
-      await connectionToAlice.updateState()
-      const connectionState = await connectionToAlice.getState()
+      log.info('- Case(aries, connections/1.0/request) -> acceptConnectionRequest')
+      log.verbose(`aries: spec/connections/1.0/request [${++numRequest}]`)
+      await acceptConnectionRequest(connection)
+    }
+    // STEP.5 - receive connection ACK
+    else if (payloadMsgType === 'did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/notification/1.0/ack') {
+      log.info('- Case(aries, notification/1.0/ack) -> receiveConnectionAck & sendCredentialOffer')
+      log.verbose(`aries: spec/notification/1.0/ack [${++numAck}]`)
+      await receiveConnectionAck(connection, pwDid)
 
-      if (connectionState === StateType.RequestReceived) {
-        const newPwDid = await connectionToAlice.getPwDid()
-        const serialConnectionToAlice = JSON.stringify(await connectionToAlice.serialize())
-        await walletAddRecord('connection', newPwDid, serialConnectionToAlice, {})
-      } else {
-        logger.error(`unexpected connection state: ${connectionState}`)
-        throw new Error(`unexpected connection state: ${connectionState}`)
+      // STEP.6 - send credential offer
+      await sendCredentialOffer(connection)
+    }
+    // STEP.8 - send credential
+    else if (payloadMsgType === 'did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/issue-credential/1.0/request-credential') {
+      log.info('- Case(aries ,issue-credential/1.0/request-credential) -> sendCredential')
+      log.verbose(`aries: spec/issue-credential/1.0/request-credential[${++numReqCred}]`)
+      await sendCredential(connection, payloadMsg)
+      if (config.enableRevoke) {
+        log.info('#8-1 (Revoke enabled) Revoke the credential')
+        await revokeCredential(payloadMsg);
       }
     }
-    // STEP.5 - receive connection created ACK
-    // notification ack - At Inviter: after connection request from Invitee
-    else if (payloadMsgType === 'did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/notification/1.0/ack') {
-      logger.verbose(`aries: spec/notification/1.0/ack [${++numAck}]`)
-      await connectionToAlice.updateState()
-      const connectionState = await connectionToAlice.getState()
-
-      if (connectionState === StateType.Accepted) {
-        const updateConnection = JSON.stringify(await connectionToAlice.serialize())
-        await walletUpdateRecordValue('connection', pwDid, updateConnection)
-      } else {
-        logger.error(`unexpected connection state: ${connectionState}`)
-        throw new Error(`unexpected connection state: ${connectionState}`)
-      }
-      // STEP.6 - send credential offer
-      // After issuing credential, issuer does not receive Ack for that
-      // We send proof request here
-      if (autoSendOffer) {
-        const schemaAttrs = {
-          name: 'alice',
-          last_name: 'clark',
-          sex: 'female',
-          date: '05-2018',
-          degree: 'maths',
-          age: '25'
-        }
-
-        logger.info('#12 Create an IssuerCredential object using the schema and credential definition')
-
-        const record = await walletGetRecord('credentialDef', 'defaultCredentialDef', {})
-        const credDef = await CredentialDef.deserialize(JSON.parse(JSON.parse(record).value))
-        const credDefHandle = credDef.handle
-        const credentialForAlice = await IssuerCredential.create({
-          attr: schemaAttrs,
-          sourceId: 'alice_degree',
-          credDefHandle,
-          credentialName: 'cred',
-          price: '0'
-        })
-
-        logger.info('#13 Issue credential offer to alice')
-        await credentialForAlice.sendOffer(connectionToAlice)
-
-        const serialCredentialForAlice = JSON.stringify(await credentialForAlice.serialize())
-        const threadId = JSON.parse(serialCredentialForAlice).data.issuer_sm.state.OfferSent.thread_id
-        await walletAddRecord('credential', threadId, serialCredentialForAlice, {})
-
-        await credentialForAlice.release()
-        await credDef.release()
-      } //if (autoSendOffer)
-    } //else if (payloadMsgType === 'did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/notification/1.0/ack')
-
-    // STEP.8 - receive request & send credential
-    // connection response - At Issuer: After issuerSendCredentialOffer
-    else if (payloadMsgType === 'did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/issue-credential/1.0/request-credential') {
-      logger.verbose(`aries: spec/issue-credential/1.0/request-credential[${++numReqCred}]`)
-      const threadId = payloadMsg['~thread'].thid
-      const record = await walletGetRecord('credential', threadId, {})
-
-      // TODO: Must replace connection_handle in credential - Need to consider better way
-      const serialCredential = JSON.parse(JSON.parse(record).value)
-      serialCredential.data.issuer_sm.state.OfferSent.connection_handle = connectionToAlice.handle
-      const credentialForAlice = await IssuerCredential.deserialize(serialCredential)
-
-      await credentialForAlice.updateState()
-      const credentialState = await credentialForAlice.getState()
-
-      if (credentialState === StateType.RequestReceived) {
-        logger.info('#17 Issue credential to alice')
-
-        await credentialForAlice.sendCredential(connectionToAlice)
-
-        const serialCredential = JSON.stringify(await credentialForAlice.serialize())
-        await walletUpdateRecordValue('credential', threadId, serialCredential)
-      } else {
-        logger.error(`unexpected credential state: ${connectionState}`)
-        throw new Error(`unexpected credential state: ${connectionState}`)
-      }
-
-      await credentialForAlice.release()
-      logger.verbose(`End of credential issue: ${++numIssues}`)
+    // STEP.10 - receive credential ACK
+    else if(payloadMsgType === 'did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/issue-credential/1.0/ack') {
+        log.info('- Case(aries ,issue-credential/1.0/ack) -> receiveCredentialAck')
+        // no logic for receiveCredentialAck in demo
+        log.verbose(`End of credential issue: ${++numIssues}`)
     } else {
-      logger.error(`msg: ${JSON.stringify(msg, null, 2)}`)
-      logger.error(`unknown payload message type name: ${payloadMsgType}`)
+      log.error(`msg: ${JSON.stringify(msg, null, 2)}`)
       throw new Error(`unknown payload message type name: ${payloadMsgType}`)
     }
   } //for (const msg of message.msgs)
 
-  await connectionToAlice.release()
+  await connection.release()
+}
+
+async function acceptConnectionRequest(connection) {
+  await connection.updateState()
+  const connectionState = await connection.getState()
+
+  if (connectionState === StateType.RequestReceived) {
+    const newPwDid = await connection.getPwDid()
+    const serialConnection = await connection.serialize()
+    log.silly(`walletAddRecord (connection, ${newPwDid}, ${JSON.stringify(serialConnection, null, 2)})`)
+    await walletAddRecord('connection', newPwDid, JSON.stringify(serialConnection), {})
+  } else {
+    throw new Error(`unexpected connection state: ${connectionState}`)
+  }
+}
+
+async function receiveConnectionAck(connection, pwDid) {
+  await connection.updateState()
+  const connectionState = await connection.getState()
+
+  if (connectionState === StateType.Accepted) {
+    const updateConnection = await connection.serialize()
+    log.silly(`walletUpdateRecordValue (connection, ${pwDid}, ${JSON.stringify(updateConnection, null, 2)})`)
+    await walletUpdateRecordValue('connection', pwDid, JSON.stringify(updateConnection))
+  } else {
+    throw new Error(`unexpected connection state: ${connectionState}`)
+  }
+}
+
+async function sendCredentialOffer(connection) {
+  const schemaAttrs = {
+    name: 'alice',
+    last_name: 'clark',
+    sex: 'female',
+    date: '05-2018',
+    degree: 'maths',
+    age: '25'
+  }
+
+  log.info('#12 Create an IssuerCredential object using the schema and credential definition')
+
+  const record = await walletGetRecord('credentialDef', 'defaultCredentialDef', {})
+  const credDef = await CredentialDef.deserialize(JSON.parse(JSON.parse(record).value))
+  const credDefHandle = credDef.handle
+  const credential = await IssuerCredential.create({
+    attr: schemaAttrs,
+    sourceId: 'alice_degree',
+    credDefHandle,
+    credentialName: 'cred',
+    price: '0'
+  })
+
+  log.info('#13 Issue credential offer to alice')
+  await credential.sendOffer(connection)
+
+  const serialCredential = await credential.serialize()
+  const threadId = serialCredential.data.issuer_sm.state.OfferSent.thread_id
+
+  log.silly(`walletAddRecord (credential, ${threadId}, ${JSON.stringify(serialCredential, null, 2)})`)
+  await walletAddRecord('credential', threadId, JSON.stringify(serialCredential), {})
+
+  await credential.release()
+  await credDef.release()
+}
+
+async function sendCredential(connection, payloadMsg) {
+  const threadId = payloadMsg['~thread'].thid
+  const credentialRecord = await walletGetRecord('credential', threadId, {})
+
+  // TODO: Must replace connection_handle in credential - Need to consider better way
+  const serialCredential = JSON.parse(JSON.parse(credentialRecord).value)
+  serialCredential.data.issuer_sm.state.OfferSent.connection_handle = connection.handle
+  const credential = await IssuerCredential.deserialize(serialCredential)
+
+  await credential.updateState()
+  const credentialState = await credential.getState()
+
+  if (credentialState === StateType.RequestReceived) {
+    log.info('#17 Issue credential to alice')
+
+    await credential.sendCredential(connection)
+
+    const serialCredential = await credential.serialize()
+    log.silly(`walletUpdateRecordValue (credential, ${threadId}, ${JSON.stringify(serialCredential, null, 2)})`)
+    await walletUpdateRecordValue('credential', threadId, JSON.stringify(serialCredential))
+  } else {
+    throw new Error(`unexpected credential state: ${connectionState}`)
+  }
+
+  await credential.release()
+}
+
+async function revokeCredential(payloadMsg) {
+  const threadId = payloadMsg['~thread'].thid
+  const credentialRecord = await walletGetRecord('credential', threadId, {})
+  const serialCredential = JSON.parse(JSON.parse(credentialRecord).value)
+
+  const credential = await IssuerCredential.deserialize(serialCredential)
+
+  await credential.updateState()
+  const credentialState = await credential.getState()
+
+  if (credentialState === StateType.Accepted) {
+    await credential.revokeCredential()
+
+    const serialCredential = await credential.serialize()
+    log.silly(`walletUpdateRecordValue (credential, ${threadId}, ${JSON.stringify(serialCredential, null, 2)})`)
+    await walletUpdateRecordValue('credential', threadId, JSON.stringify(serialCredential))
+  } else {
+    throw new Error(`unexpected credential state: ${connectionState}`)
+  }
+
+  await credential.release()
+}
+
+function runWebHookServer() {
+  const app = express()
+  const port = url.parse(webHookUrl).port
+  const asyncHandler = fn => (req, res, next) => {
+    return Promise
+      .resolve(fn(req, res, next))
+      .catch(function (err) {
+        log.error(`${util.inspect(err)}`)
+        res.status(500).send({ message: `${util.inspect(err)}` })
+        process.exit(1)
+      })
+  }
+
+  app.use(bodyParser.json())
+  app.use(morgan('dev'))
+
+  app.post('/notifications', asyncHandler(async (req, res) => {
+    const downloadMessagesParam = {
+      //status: req.body.msgStatusCode,
+      uids: req.body.msgUid,
+      pairwiseDids: req.body.pwDid,
+    }
+    const dlMessages = JSON.parse(await downloadMessages(downloadMessagesParam))
+    log.silly(`dlMessages: ${JSON.stringify(dlMessages, null, 2)}`)
+
+    for (const message of dlMessages) {
+      if (message.msgs.length < 1) {
+        throw new Error(`empty message: ${JSON.stringify(message, null, 2)}`)
+      }
+
+      try {
+        await handleMessage(message)
+      } catch (err) {
+        log.error(`message: ${JSON.stringify(message, null, 2)}`)
+        throw new Error(`handleMessage error: ${err.message}`)
+      }
+    }
+
+    res.status(200).send()
+  }))
+
+  // STEP.1 - create connection & send invitation
+  app.get('/invitations', asyncHandler(async (req, res) => {
+    const invitation = await getInvitation()
+    res.status(200).json(invitation)
+  }))
+
+  app.use(asyncHandler(async (req) => {
+    throw new Error(`Your request: '${req.originalUrl}' didn't reach any handler.`)
+  }))
+
+  app.listen(port, () => log.verbose(`Server listening on port ${port}...`))
 }
 
 const optionDefinitions = [
@@ -410,12 +520,6 @@ const optionDefinitions = [
     type: String,
     description: 'Communication method. Possible values: aries, legacy. Default is aries.',
     defaultValue: 'aries'
-  },
-  {
-    name: 'postgresql',
-    type: Boolean,
-    description: 'If specified, postresql wallet will be used.',
-    defaultValue: false
   }
 ]
 
@@ -438,7 +542,7 @@ function areOptionsValid (options) {
   return true
 }
 
-runScript(optionDefinitions, usage, areOptionsValid, runFaber)
+runScript(optionDefinitions, usage, areOptionsValid, startUp)
   .catch(function(err) {
-    logger.error(`${util.inspect(err)}`)
+    log.error(`${util.inspect(err)}`)
   })

@@ -1,3 +1,9 @@
+/**************************************************
+ * Author  : Jihyuck Yun                          *
+ *           dr.jhyun@gmail.com                   *
+ * since August 10, 2020                          *
+ **************************************************/
+
 'use strict'
 
 const { performance } = require('perf_hooks')
