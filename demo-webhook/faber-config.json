@@ -1,9 +1,13 @@
 {
   "agencyURL": "http://localhost:8080",
   "tailsServerURL": "http://13.124.169.12",
+
   "maxCrdes": 10,
   "enableRevoke": false,
+
   "postgresql": false,
+  "commMethod": "aries",
+
   "appLogLevel": "verbose",
   "vcxLogLevel": "error"
 }

@@ -9,13 +9,13 @@
 const { DisclosedProof } = require('../dist/src/api/disclosed-proof')
 const { Connection } = require('../dist/src/api/connection')
 const { Credential } = require('../dist/src/api/credential')
-const { StateType } = require('../dist/src')
-const common = require('./common')
-const log = require('./logger')
+const { StateType } = require('../dist/src/api/common')
 const { runScript } = require('./script-comon')
 const { shutdownVcx, downloadMessages, updateMessages, getVersion } = require('../dist/src/api/utils')
 const { walletAddRecord, walletGetRecord, walletUpdateRecordValue } = require('./wallet')
 const { PhaseType, Report } = require('./report')
+const common = require('./common')
+const log = require('./logger')
 const config = require('./alice-config.json')
 
 const express = require('express')
@@ -256,7 +256,7 @@ async function runAlice(options, aliceId) {
     }
 
     // Communication method. aries.
-    if (options.comm === 'aries') {
+    if (config.commMethod === 'aries') {
       provisionConfig.protocol_type = '4.0'
       provisionConfig.communication_method = 'aries'
       log.info('Running with Aries VCX Enabled! Make sure VCX agency is configured to use protocol_type 4.0')
@@ -303,7 +303,7 @@ async function runAlice(options, aliceId) {
   }
 
   // proceed to issue
-  if (!isValidJson(options.issuerInvite) && options.issuerInvite !== 'auto') {
+  if (!common.isValidJson(options.issuerInvite) && options.issuerInvite !== 'auto') {
     log.verbose(`Alice[${aliceId}] shutdown VCX with deleting wallet`)
     await shutdownVcx(true)
     process.send({cmd: 'toMasterDone', report: report.getRecords()})
@@ -433,7 +433,7 @@ async function handleMessage(message, aliceId, options) {
           log.verbose(`Alice[${aliceId}] End of issue credential`)
 
           // proceed to verify
-          if (!isValidJson(options.verifierInvite) && options.verifierInvite !== 'auto') {
+          if (!common.isValidJson(options.verifierInvite) && options.verifierInvite !== 'auto') {
             log.verbose(`Alice[${aliceId}] shutdown VCX with deleting wallet`)
             await shutdownVcx(true)
             process.send({cmd: 'toMasterDone', report: report.getRecords()})
@@ -570,20 +570,19 @@ async function sendProof(connection, pwDid, msgUid, aliceId) {
   log.info(`Alice[${aliceId}] #24 Query for credentials in the wallet that satisfy the proof request`)
   const credentials = await proof.getCredentials()
 
-  log.verbose(`credentials: ${JSON.stringify(credentials, null, 2)}`)
-
+  log.debug(`credential before: ${JSON.stringify(credentials, null, 2)}`)
   // Use the first available credentials to satisfy the proof request
   for (let i = 0; i < Object.keys(credentials.attrs).length; i++) {
     const attr = Object.keys(credentials.attrs)[i]
-    const tailsFileDir = `${tailsFileRoot}/${credentials.attrs[attr][0].cred_info.rev_reg_id}`
+    const tailsFileDir = credentials.attrs[attr][0] ?
+      `${tailsFileRoot}/${credentials.attrs[attr][0].cred_info.rev_reg_id}` : credentials.attrs[attr][0]
     credentials.attrs[attr] = {
       credential: credentials.attrs[attr][0],
       // add tails file attribute
       tails_file: tailsFileDir
     }
   }
-
-  log.verbose(`credentials: ${JSON.stringify(credentials, null, 2)}`)
+  log.debug(`credential after: ${JSON.stringify(credentials, null, 2)}`)
 
   log.info(`Alice[${aliceId}] #25 Generate the proof`)
   await proof.generateProof({ selectedCreds: credentials, selfAttestedAttrs: {} })
@@ -634,12 +633,6 @@ const optionDefinitions = [
     alias: 'h',
     type: Boolean,
     description: 'Display this usage guide.'
-  },
-  {
-    name: 'comm',
-    type: String,
-    description: 'Communication method. Possible values: aries, legacy. Default is aries.',
-    defaultValue: 'aries'
   },
   {
     name: 'issuerInvite',
@@ -702,22 +695,9 @@ const usage = [
   }
 ]
 
-function isValidJson(str) {
-  if (!str) {
-    return false
-  }
-
-  try {
-    JSON.parse(str)
-  } catch (e) {
-    return false
-  }
-  return true
-}
-
 function areOptionsValid(options) {
   const allowedCommMethods = ['aries', 'legacy']
-  if (!(allowedCommMethods.includes(options.comm))) {
+  if (!(allowedCommMethods.includes(config.commMethod))) {
     log.error(`Unknown communication method ${options.comm}. Only ${JSON.stringify(allowedCommMethods)} are allowed.`)
     return false
   }

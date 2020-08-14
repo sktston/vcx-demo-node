@@ -68,10 +68,21 @@ async function retryRun(retry = 0, func, argument) {
   return result
 }
 
-module.exports.loadPostgresPlugin = loadPostgresPlugin
-module.exports.initLibNullPay = initLibNullPay
-module.exports.initRustApiAndLogger = initRustApiAndLogger
-module.exports.provisionAgentInAgency = provisionAgentInAgency
-module.exports.initVcxWithProvisionedAgentConfig = initVcxWithProvisionedAgentConfig
-module.exports.getRandomInt = getRandomInt
-module.exports.retryRun = retryRun
+function isValidJson(str) {
+  if (!str) {
+    return false
+  }
+
+  try {
+    JSON.parse(str)
+  } catch (e) {
+    return false
+  }
+  return true
+}
+
+module.exports = {
+  loadPostgresPlugin, initLibNullPay, initRustApiAndLogger,
+  provisionAgentInAgency, initVcxWithProvisionedAgentConfig, getRandomInt,
+  retryRun, isValidJson
+}
