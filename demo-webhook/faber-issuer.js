@@ -107,10 +107,10 @@ async function createCredentialDefinition() {
     name: `CredentialDefName`,
     endorser: faberDid,
     revocationDetails: {
-      supportRevocation: true,
+      supportRevocation: config.enableRevoke,
       // tails file is created here when prepareForEndorser
-      tailsFile: tailsFileRoot,
-      maxCreds: config.maxCrdes
+      tailsFile: config.enableRevoke ? tailsFileRoot : 'tails.txt',
+      maxCreds: config.enableRevoke ? config.maxCrdes : 0
     },
     schemaId: schemaId,
     sourceId: `CredentialDefSourceId`,
@@ -123,19 +123,24 @@ async function createCredentialDefinition() {
 
   const credDefHandle = credDef.handle
   const credDefTrx = credDef.credentialDefTransaction
-  let   revRegDefTrx = credDef.revocRegDefTransaction
-  const revRegId = JSON.parse(revRegDefTrx).operation.id
-  const tailsFileHash = JSON.parse(revRegDefTrx).operation.value.tailsHash
-  const revRegEntryTrx = credDef.revocRegEntryTransaction
 
   log.info('#4-2 Publish credential definition and revocation registry on the ledger')
   await endorseTransaction(credDefTrx)
-  // we replace tails file location from local to tails server url
-  revRegDefTrx = JSON.parse(revRegDefTrx)
-  revRegDefTrx.operation.value.tailsLocation = config.tailsServerURL + '/' + revRegId
-  revRegDefTrx = JSON.stringify(revRegDefTrx)
-  await endorseTransaction(revRegDefTrx)
-  await endorseTransaction(revRegEntryTrx)
+
+  let revRegDefTrx, revRegId, tailsFileHash, revRegEntryTrx
+  if (config.enableRevoke) {
+    revRegDefTrx = credDef.revocRegDefTransaction
+    revRegId = JSON.parse(revRegDefTrx).operation.id
+    tailsFileHash = JSON.parse(revRegDefTrx).operation.value.tailsHash
+    revRegEntryTrx = credDef.revocRegEntryTransaction
+
+    // we replace tails file location from local to tails server url
+    revRegDefTrx = JSON.parse(revRegDefTrx)
+    revRegDefTrx.operation.value.tailsLocation = config.tailsServerURL + '/' + revRegId
+    revRegDefTrx = JSON.stringify(revRegDefTrx)
+    await endorseTransaction(revRegDefTrx)
+    await endorseTransaction(revRegEntryTrx)
+  }
 
   await credDef.updateState()
   const credentialDefState = await credDef.getState()
@@ -146,23 +151,25 @@ async function createCredentialDefinition() {
     throw new Error(`Publishing is failed: ${credentialDefState}`)
   }
 
-  log.info(`#4-3 Upload tails file to tails filer server: ${config.tailsServerURL}/${revRegId}`)
+  if (config.enableRevoke) {
+    log.info(`#4-3 Upload tails file to tails filer server: ${config.tailsServerURL}/${revRegId}`)
 
-  const formData = new FormData()
-  formData.append('genesis', fs.createReadStream(`${__dirname}/genesis.txn`))
-  formData.append('tails', fs.createReadStream(`${tailsFileRoot}/${tailsFileHash}`))
+    const formData = new FormData()
+    formData.append('genesis', fs.createReadStream(`${__dirname}/genesis.txn`))
+    formData.append('tails', fs.createReadStream(`${tailsFileRoot}/${tailsFileHash}`))
 
-  const httpConfig = {
-    headers: {
-      ...formData.getHeaders()
+    const httpConfig = {
+      headers: {
+        ...formData.getHeaders()
+      }
     }
-  }
-  const response = await axios.put(`${config.tailsServerURL}/${revRegId}`, formData, httpConfig)
+    const response = await axios.put(`${config.tailsServerURL}/${revRegId}`, formData, httpConfig)
 
-  if (response.data === tailsFileHash) {
-    log.info(`Uploaded successfully - tails file: ${tailsFileRoot}/${tailsFileHash}`)
-  } else {
-    throw new Error(`Uploading is failed - tails file: ${tailsFileRoot}/${tailsFileHash}`)
+    if (response.data === tailsFileHash) {
+      log.info(`Uploaded successfully - tails file: ${tailsFileRoot}/${tailsFileHash}`)
+    } else {
+      throw new Error(`Uploading is failed - tails file: ${tailsFileRoot}/${tailsFileHash}`)
+    }
   }
 
   const credDefId = await credDef.getCredDefId()
@@ -216,7 +223,7 @@ async function handleMessage(message) {
       log.info('- Case(aries ,issue-credential/1.0/request-credential) -> sendCredential')
       log.verbose(`aries: spec/issue-credential/1.0/request-credential[${++numReqCred}]`)
       await sendCredential(connection, payloadMsg)
-      if (config.enableRevoke) {
+      if (config.revokeAfterIssue) {
         log.info('#8-1 (Revoke enabled) Revoke the credential')
         await revokeCredential(payloadMsg);
       }

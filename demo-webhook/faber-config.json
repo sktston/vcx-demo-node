@@ -2,8 +2,9 @@
   "agencyURL": "http://localhost:8080",
   "tailsServerURL": "http://13.124.169.12",
 
-  "maxCrdes": 10,
   "enableRevoke": false,
+  "revokeAfterIssue": false,
+  "maxCrdes": 10,
 
   "postgresql": false,
   "commMethod": "aries",

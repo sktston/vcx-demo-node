@@ -485,7 +485,7 @@ async function sendCredentialRequest(connection, pwDid, msgUid, aliceId) {
   while (offers === undefined || offers.length < 1) {
     offers = await Credential.getOffers(connection)
   }
-  log.info(`credential offer: ${JSON.stringify(offers[0], null, 2)}`)
+  //log.info(`credential offer: ${JSON.stringify(offers[0], null, 2)}`)
 
   // Update agency message status manually (xxxUpdateState automatically update message status, but not here)
   const msgJsonData = {
@@ -526,18 +526,22 @@ async function acceptCredential(connection, payloadMsg, aliceId) {
     // download tails file if not exist
     const serialCredential = await credential.serialize()
     const revRegDefJson = JSON.parse(serialCredential.data.holder_sm.state.Finished.rev_reg_def_json)
-    const tailsFileDir = `${tailsFileRoot}/${revRegDefJson.id}`
-    const tailsFilePath = `${tailsFileDir}/${revRegDefJson.value.tailsHash}`
-    if(!fs.existsSync(tailsFilePath)) {
-      // get tails file from tails file server
-      const httpConfig = {
-        responseType: 'arraybuffer',
+
+    // check that revocation info exists
+    if (revRegDefJson) {
+      const tailsFileDir = `${tailsFileRoot}/${revRegDefJson.id}`
+      const tailsFilePath = `${tailsFileDir}/${revRegDefJson.value.tailsHash}`
+      if(!fs.existsSync(tailsFilePath)) {
+        // get tails file from tails file server
+        const httpConfig = {
+          responseType: 'arraybuffer',
+        }
+        const response = await axios.get(revRegDefJson.value.tailsLocation, httpConfig)
+        if (!fs.existsSync(tailsFileDir)){
+          fs.mkdirSync(tailsFileDir)
+        }
+        fs.writeFileSync(tailsFilePath, response.data)
       }
-      const response = await axios.get(revRegDefJson.value.tailsLocation, httpConfig)
-      if (!fs.existsSync(tailsFileDir)){
-        fs.mkdirSync(tailsFileDir)
-      }
-      fs.writeFileSync(tailsFilePath, response.data)
     }
   } else {
     throw new Error(`Alice[${aliceId}] unexpected credential state: ${credentialState}`)
@@ -575,7 +579,7 @@ async function sendProof(connection, pwDid, msgUid, aliceId) {
   for (let i = 0; i < Object.keys(credentials.attrs).length; i++) {
     const attr = Object.keys(credentials.attrs)[i]
     const tailsFileDir = credentials.attrs[attr][0] ?
-      `${tailsFileRoot}/${credentials.attrs[attr][0].cred_info.rev_reg_id}` : credentials.attrs[attr][0]
+      `${tailsFileRoot}/${credentials.attrs[attr][0].cred_info.rev_reg_id}` : undefined
     credentials.attrs[attr] = {
       credential: credentials.attrs[attr][0],
       // add tails file attribute
