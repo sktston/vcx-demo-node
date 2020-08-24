@@ -335,7 +335,7 @@ async function receiveInvitation(inviteMessgae, inviteUrl, aliceId) {
       const response = await axios.get(inviteUrl)
       inviteMessgae = JSON.stringify(response.data)
     } catch (err) {
-      throw new Error(`error response from issuer: ${err.message}`)
+      throw new Error(`error response from issuer/verifier: ${err.message}`)
     }
   }
 
@@ -466,7 +466,7 @@ async function handleMessage(message, aliceId, options) {
   } //for (const message of dlMessages)
 }
 
-async function sendConnectionAck(connection, pwDid) {
+async function sendConnectionAck(connection, pwDid, aliceId) {
   await connection.updateState()
   const connectionState = await connection.getState()
 
