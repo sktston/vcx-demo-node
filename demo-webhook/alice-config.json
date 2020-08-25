@@ -1,7 +1,7 @@
 {
   "agencyURL": "http://localhost:8080",
-  "inviteIssuerURL": "http://localhost:7201/invitations",
-  "inviteVerifierURL": "http://localhost:7202/invitations",
+  "inviteIssuerURL": "http://localhost:8022/invitation",
+  "inviteVerifierURL": "http://localhost:8022/invitation",
 
   "postgresql": false,
   "commMethod": "aries",

@@ -146,7 +146,7 @@ async function sendProofRequest(connection) {
     attrs: proofAttributes,
     preds: proofPredicates,
     name: 'proofForAlice',
-    revocationInterval: config.enableRevoke ? { to: Math.floor(new Date() / 1000) } : {}
+    revocationInterval: config.supportRevoke ? { to: Math.floor(new Date() / 1000) } : {}
   })
 
   log.info('#20 Request proof of degree from alice')

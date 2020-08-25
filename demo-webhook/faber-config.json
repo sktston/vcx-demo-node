@@ -2,7 +2,7 @@
   "agencyURL": "http://localhost:8080",
   "tailsServerURL": "http://13.124.169.12",
 
-  "enableRevoke": true,
+  "supportRevoke": true,
   "revokeAfterIssue": false,
   "maxCrdes": 10,
 

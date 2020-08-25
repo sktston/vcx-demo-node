@@ -107,10 +107,10 @@ async function createCredentialDefinition() {
     name: `CredentialDefName`,
     endorser: faberDid,
     revocationDetails: {
-      supportRevocation: config.enableRevoke,
+      supportRevocation: config.supportRevoke,
       // tails file is created here when prepareForEndorser
-      tailsFile: config.enableRevoke ? tailsFileRoot : 'tails.txt',
-      maxCreds: config.enableRevoke ? config.maxCrdes : 0
+      tailsFile: config.supportRevoke ? tailsFileRoot : 'tails.txt',
+      maxCreds: config.supportRevoke ? config.maxCrdes : 0
     },
     schemaId: schemaId,
     sourceId: `CredentialDefSourceId`,
@@ -128,7 +128,7 @@ async function createCredentialDefinition() {
   await endorseTransaction(credDefTrx)
 
   let revRegDefTrx, revRegId, tailsFileHash, revRegEntryTrx
-  if (config.enableRevoke) {
+  if (config.supportRevoke) {
     revRegDefTrx = credDef.revocRegDefTransaction
     revRegId = JSON.parse(revRegDefTrx).operation.id
     tailsFileHash = JSON.parse(revRegDefTrx).operation.value.tailsHash
@@ -151,7 +151,7 @@ async function createCredentialDefinition() {
     throw new Error(`Publishing is failed: ${credentialDefState}`)
   }
 
-  if (config.enableRevoke) {
+  if (config.supportRevoke) {
     log.info(`#4-3 Upload tails file to tails filer server: ${config.tailsServerURL}/${revRegId}`)
 
     const formData = new FormData()
