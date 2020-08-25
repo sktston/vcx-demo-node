@@ -434,6 +434,7 @@ async function handleMessage(message, aliceId, options) {
 
           // proceed to verify
           if (!common.isValidJson(options.verifierInvite) && options.verifierInvite !== 'auto') {
+            verifyCount += 1
             log.verbose(`Alice[${aliceId}] shutdown VCX with deleting wallet`)
             await shutdownVcx(true)
             process.send({cmd: 'toMasterDone', report: report.getRecords()})
