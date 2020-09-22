@@ -528,6 +528,14 @@ async function acceptCredential(connection, payloadMsg, aliceId) {
     const serialCredential = await credential.serialize()
     const revRegDefJson = JSON.parse(serialCredential.data.holder_sm.state.Finished.rev_reg_def_json)
 
+/* For debug
+    // print verifiable credential
+    const credentialBase64 = serialCredential.data.holder_sm.state.Finished.credential['credentials~attach'][0].data.base64
+    const credentialText = Buffer.from(credentialBase64, 'base64').toString('utf8')
+    const credentialData = JSON.stringify(JSON.parse(credentialText), null, 2)
+    log.debug(`credentialData: ${credentialData}`)
+*/
+
     // check that revocation info exists
     if (revRegDefJson) {
       const tailsFileDir = `${tailsFileRoot}/${revRegDefJson.id}`
