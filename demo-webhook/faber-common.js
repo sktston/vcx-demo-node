@@ -194,7 +194,7 @@ function runWebHookServer(webHookUrl, handleMessage) {
   }))
 
   // STEP.1 - create connection & send invitation
-  app.get('/invitations', asyncHandler(async (req, res) => {
+  app.get('/invitation', asyncHandler(async (req, res) => {
     const invitation = await getInvitation()
     res.status(200).json(invitation)
   }))

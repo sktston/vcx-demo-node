@@ -17,7 +17,7 @@ const config = require('./faber-config.json')
 const ip = require('ip')
 const util = require('util')
 
-const webHookUrl = 'http://' + ip.address() + ':7202/notifications/'
+const webHookUrl = 'http://' + ip.address() + ':8032/notifications/'
 let numRequest = 0, numAck = 0, numPresent = 0, numVerify = 0
 
 log.level = process.env.APP_LOG_LEVEL ? process.env.APP_LOG_LEVEL : config.appLogLevel

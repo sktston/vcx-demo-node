@@ -25,7 +25,7 @@ const axios = require('axios')
 const FormData = require('form-data')
 const fs = require('fs')
 
-const webHookUrl = 'http://' + ip.address() + ':7201/notifications/'
+const webHookUrl = 'http://' + ip.address() + ':8022/notifications/'
 const tailsFileRoot = os.homedir() + '/.indy_client/tails'
 let numRequest = 0, numAck = 0, numReqCred = 0, numIssues = 0
 
